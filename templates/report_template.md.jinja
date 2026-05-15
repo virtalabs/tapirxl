@@ -1,0 +1,126 @@
+# Asset Inventory — Broadcast Protocol Signal Fusion (PoC v2.0 envelope)
+
+**Capture file:** `{{ pcap_name }}`
+**Analysis date:** `{{ today }}`
+**Analyst:** VirtaLabs (automated — tapirxl)
+**Classification:** CONFIDENTIAL — HIPAA Sensitive
+**Mode:** {{ mode }}
+
+---
+
+## Summary
+
+| Category | Count |
+|----------|-------|
+| Total unique MAC hosts analyzed | {{ totals.hosts }} |
+| Skipped hosts (routing=SKIP) | {{ totals.skipped }} |
+| Routed STAMP_LOW (single weak signal) | {{ totals.stamp_low }} |
+| DETERMINISTIC_FINAL (consensus sans fusion) | {{ totals.deterministic_final }} |
+| Submitted to LM fusion / normalization path | {{ totals.lm_queued }} |
+{% if no_llm %}
+| Rows visible — LOW stamped hosts | {{ conf_counts.low }} |
+| Rows visible — TRIAGE_ONLY (fusion pending) | {{ conf_counts.triage_only }} |
+{% else %}
+| Rows visible — HIGH confidence | {{ conf_counts.high }} |
+| Rows visible — MEDIUM confidence | {{ conf_counts.medium }} |
+| Rows visible — LOW / stamp-low | {{ conf_counts.low_total }} |
+{% endif %}
+
+---
+
+## Detailed Asset Records
+{% for r in records %}
+## {{ r.ip }} — {{ r.device_class }}
+
+| Field | Value |
+|-------|-------|
+| IP | `{{ r.ip }}` |
+| MAC | `{{ r.mac }}` |
+| Host ID | `{{ r.host_id }}` |
+| OUI Vendor | {{ r.oui_vendor }} |
+| Hostname | {{ r.hostname }} |
+| Vendor (CPE) | `{{ r.cpe_vendor }}` |
+| Product (CPE) | `{{ r.cpe_product }}` |
+| Device class (enum) | `{{ r.device_class_enum }}` |
+| Pipelines fired | `{{ r.pipelines_fired_str }}` |
+| Processing path | `{{ r.proc_path }}` |
+| Triage routing | `{{ r.triage_routing }}` |
+| Deterministic consensus | `{{ r.consensus_label }} ({{ r.consensus_confidence }})` |
+| Confidence | **{{ r.confidence }}** |
+| Device Class | {{ r.device_class }} |
+
+### Pipeline blocks (deterministic excerpts)
+
+{% for p in r.pipeline_blocks %}
+{% if p.is_triggered %}
+- **{{ p.name }}:** deterministic `{{ p.label }}` (**{{ p.confidence }}**)
+```json
+{{ p.snippet_json }}
+```
+
+{% else %}
+- **{{ p.name }}:** *(not triggered)*
+
+{% endif %}
+{% endfor %}
+### Broadcast / legacy flat summary
+
+- SSDP hints: `{{ r.ssdp_hints }}` …
+- WS-Discovery UUID: `{{ r.ws_uuid }}`
+- WS-Discovery Types: {{ r.ws_types_str }}
+- mDNS hostname: {{ r.mdns_hostname }}
+- mDNS TXT: {{ r.mdns_txt }}
+- DNS-SD services: {{ r.dns_sd_services_str }}
+- LLMNR queries: {{ r.llmnr_queries_str }}
+- LLMNR hostname: {{ r.llmnr_hostname }}
+
+**Contradictions (deterministic codes):**
+{{ r.contradiction_codes }}
+
+**Expert Anomalies:** {{ r.expert_flags }}
+
+{% if r.has_contradictions_expanded %}
+**Contradictions (expanded):**
+
+{{ r.contradictions_expanded }}
+
+{% endif %}
+{% if r.single_signal %}
+> Single signal: {{ r.single_signal_text }}. Insufficient for multi-signal classification without further capture.
+
+{% endif %}
+{% if r.normalized_json_str is not none %}
+**Normalization trace:**
+```json
+{{ r.normalized_json_str }}
+```
+
+{% endif %}
+{% if r.fusion %}
+**Fusion reasoning:**
+
+{{ r.fusion.reasoning_trace }}
+
+**Open Questions:**
+
+{% for q in r.fusion.open_questions %}
+- {{ q }}
+{% else %}
+- None
+{% endfor %}
+
+**Contradictions (fusion pass):** {{ r.fusion.contradictions }}
+
+{% endif %}
+---
+{% endfor %}
+{% if skip_rows %}
+## Skipped Hosts (routing SKIP)
+
+| IP | MAC | OUI Vendor |
+|----|-----|------------|
+{% for s in skip_rows %}
+| `{{ s.ip }}` | `{{ s.mac }}` | {{ s.oui_vendor }} |
+{% endfor %}
+
+{% endif %}

@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.eggs/
+dist/
+build/
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# Test / coverage / tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+
+# Artifact directories (gitignored by design — see ARCHITECTURE.md §2.6)
+pcap/
+reports/
+agents/
+
+# macOS
+.DS_Store

@@ -1,0 +1,90 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:virtahealth:medical-device-traffic:inventory-record:1.1",
+  "title": "InventoryRecord",
+  "description": "One passively-observed medical device inventory record. Emitted as a single line of JSONL by poc_agentic_passive_device_identification.py when --json is set.",
+  "type": "object",
+  "properties": {
+    "hostname": {
+      "type": ["string", "null"],
+      "description": "Best-effort hostname, resolved in the priority order: DHCP Option 12 -> LLMNR self-claim -> SMB NTLMSSP MsvAvNbComputerName / AUTHENTICATE.workstation -> mDNS A/PTR. Null when no on-wire hostname signal is observed for the host."
+    },
+    "ip_address": {
+      "type": "string",
+      "description": "Observed source IP for the host (IPv4 or IPv6 string form)."
+    },
+    "mac_address": {
+      "type": "string",
+      "description": "Layer-2 MAC address normalized to colon-separated uppercase hex."
+    },
+    "vendor": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "microsoft",
+        "philips",
+        "vmware",
+        "paloaltonetworks",
+        "intel"
+      ],
+      "description": "Vendor as a cpedict canonical slug. Used as slot 3 (vendor) in the cpe:2.3 string when a CVE/CPE binding exists upstream. Null when no deterministic mapping is available. Enumeration is intentionally limited to vendors observed in the synthetic and Schoolcraft PCAPs."
+    },
+    "product": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "windows_7",
+        "windows_10",
+        "windows_server",
+        "intellivue_mx700",
+        "brilliance_ict",
+        "clinical_collaboration_platform",
+        "pan_os"
+      ],
+      "description": "Product as a cpedict canonical slug. Used as slot 4 (product) in the cpe:2.3 string. Null when no deterministic product fingerprint (DICOM ManufacturerModelName, DHCP VCI + PRL, WS-Discovery series code, etc.) is observed."
+    },
+    "version": {
+      "type": ["string", "null"],
+      "description": "Firmware/software version as a free-form string when observed (e.g. DICOM (0018,1020) SoftwareVersions, mDNS TXT firmware key, NTLMSSP version block)."
+    },
+    "device_class": {
+      "type": ["string", "null"],
+      "enum": [
+        null,
+        "CT",
+        "MR",
+        "US",
+        "CR",
+        "DX",
+        "MG",
+        "NM",
+        "PT",
+        "patient_monitor",
+        "clinical_workstation",
+        "workstation",
+        "server",
+        "pacs",
+        "firewall",
+        "dhcp_server"
+      ],
+      "description": "Enumerated device class. For DICOM-speaking hosts, takes the DICOM Modality value (0008,0060): CT, MR, US, CR, DX, MG, NM, PT. Otherwise one of the role enums (patient_monitor, clinical_workstation, workstation, server, pacs, firewall, dhcp_server). Null when no deterministic class can be assigned."
+    },
+    "open_ports": {
+      "type": "array",
+      "items": {
+        "type": "integer",
+        "minimum": 0,
+        "maximum": 65535
+      },
+      "uniqueItems": true,
+      "description": "Set of TCP/UDP ports inferred from passively observed traffic on this host."
+    },
+    "confidence": {
+      "type": ["string", "null"],
+      "enum": [null, "HIGH", "MEDIUM", "LOW"],
+      "description": "Effective per-host confidence after triage + (optional) fusion. HIGH: 3+ independent protocol signals agree (or 2+ with a floor trigger and no contradiction). MEDIUM: 2 signals or 1 signal with floor trigger, or any contradiction. LOW: single signal with no floor trigger. Null reserved for skipped hosts that never reach the JSONL emit path."
+    }
+  },
+  "required": ["ip_address", "mac_address", "open_ports", "confidence"],
+  "additionalProperties": false
+}
