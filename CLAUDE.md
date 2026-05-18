@@ -35,7 +35,7 @@ Model" below.
 
 ```
 core/           # MAC, OUI, PHI redact, CPE enums, IP sort — no project imports
-schemas/        # pydantic v2: SignalObservation, HostEnvelope, InventoryRecord, FusionOutput
+schemas/        # pydantic v2: HostEnvelope, InventoryRecord (FusionOutput lives on experimental/agent)
 parser/         # deterministic only — NO dspy, NO LM imports
   extractors/   # one file per protocol (ws_discovery, mdns, dns_sd, llmnr, ssdp,
                 #   capsule_mdip, arp, tcp_syn, tls_sni, smb2, kerberos, dns, ssh,
@@ -82,7 +82,7 @@ cli.py          # typer app; wires subcommands to parser/ and agent/
 | **N3** | PHI redaction is mandatory **before** writing to the envelope: HL7 PID-3/5/7/8 and DICOM `(0010,*)` tags → `"<PHI>"`. Institution `(0008,0080)` is OK to keep. |
 | **N4** | All extractors are read-only. No sockets, no packets sent, no DNS lookups against observed names. |
 | **N5** | `NormalizeSignal` output must be verbatim from `candidate_labels` or `OTHER:<reason>`. Enforced post-hoc; non-matching → field left ambiguous, confidence capped at MEDIUM. **No retries** — fix compile-set quality instead. |
-| **N6** | When `--json` is set, redirect `sys.stdout` → `sys.stderr` immediately after argparse. Keep the real fd for JSONL only. Third-party libs (dspy, pyshark, ollama) print to stdout unprompted. |
+| **N6** | **stdout carries the data contract; everything else goes to stderr.** For commands that emit structured data on stdout (`tapirxl parse`, `tapirxl parse --json`), stdout is reserved for JSONL conforming to the documented schema. Summaries, progress, counts, warnings, banners, paths, debug logs, and any third-party library noise (pyshark, tshark, dspy, ollama) go to stderr. Defense-in-depth: save the real stdout fd at command entry, redirect `sys.stdout → sys.stderr` for the duration of the work phase, then write JSONL using the saved fd. Pre-commit any new CLI command by piping it through `jq -e .` against a known-good fixture. |
 | **N7** | The `DETERMINISTIC_FINAL` code path (≈60–70% of hosts) MUST skip both LM tiers entirely. Any regression here multiplies wall-clock 5–10×. |
 | **N8** | Envelope primary key is MAC (`host_id`). IP is observational. Do not key envelopes on IP. |
 | **N9** | Adding new fields to the envelope is non-breaking. Renaming or removing fields breaks compiled DSPy modules — treat field names as ABI. |
@@ -271,7 +271,8 @@ When working on agent-tier features (LM normalize, fusion, RLM, golden report, c
 
 Migration from the monolith (`poc_agentic_passive_device_identification.py`, ~4000 lines, retired) was milestone-gated:
 
-- **M0** [done, main]: `just agent-no-llm` works on `experimental/agent`, `models.toml` exists on `experimental/agent`, artifact dirs gitignored.
+- **M0** [done, main]: artifact dirs gitignored, dev toolchain pinned. Agent-tier
+  bring-up (`just agent-no-llm`, `models.toml`) landed on `experimental/agent`.
 - **M1** [done, main]: `tapirxl` entry point installed.
 - **M2** [done, main]: pydantic v2 envelope in `schemas/`; `core/` extracted.
 - **M3** [done, main]: `tapirxl parse pcap/x.pcap | jq .` yields one envelope per line.
