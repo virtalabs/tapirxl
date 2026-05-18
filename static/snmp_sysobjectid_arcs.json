@@ -1,0 +1,9 @@
+{
+  "sysdescr_prefix_labels": [
+    ["Cisco IOS", "Cisco IOS network device"],
+    ["Cisco Catalyst", "Cisco Catalyst switch"],
+    ["Philips Medical", "Philips medical networked device"],
+    ["HP-", "HP network printer/device"],
+    ["Brother", "Brother network printer/device"]
+  ]
+}
