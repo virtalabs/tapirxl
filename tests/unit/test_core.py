@@ -15,7 +15,6 @@ from tapirxl.core.mac import normalize_mac
 from tapirxl.core.oui import load_oui_table, oui_lookup
 from tapirxl.core.phi import redact_phi, scrub_hl7_pid_segment
 from tapirxl.schemas.envelope import HostEnvelope, SignalObservation
-from tapirxl.schemas.fusion import FusionOutput
 from tapirxl.schemas.inventory import InventoryRecord
 
 # ── core/mac ──────────────────────────────────────────────────────────────────
@@ -182,9 +181,12 @@ class TestHostEnvelope:
         assert env.pipeline_2 is None
         assert env.pipeline_3 is None
 
-    def test_extra_fields_allowed(self):
-        env = HostEnvelope(host_id="aa:bb:cc:dd:ee:ff", legacy_flat_key="value")
-        assert env.model_extra.get("legacy_flat_key") == "value"
+    def test_extra_fields_forbidden(self):
+        import pydantic
+        import pytest
+
+        with pytest.raises(pydantic.ValidationError):
+            HostEnvelope(host_id="aa:bb:cc:dd:ee:ff", legacy_flat_key="value")
 
     def test_model_dump_roundtrip(self):
         env = HostEnvelope(host_id="aa:bb:cc:dd:ee:ff", oui_vendor="Philips")
@@ -216,36 +218,3 @@ class TestInventoryRecord:
             ip_address="10.0.0.1", mac_address="AA:BB:CC:DD:EE:FF", open_ports=[], vendor="philips"
         )
         assert rec.vendor == "philips"
-
-
-# ── schemas/fusion ────────────────────────────────────────────────────────────
-
-
-class TestFusionOutput:
-    def test_construction(self):
-        fuse = FusionOutput(
-            host_id="aa:bb:cc:dd:ee:ff",
-            mac="AA:BB:CC:DD:EE:FF",
-            ip="10.0.0.1",
-            path="FUSED",
-            device_class="CT",
-            confidence="HIGH",
-            reasoning_trace="DICOM modality CT confirmed",
-        )
-        assert fuse.contradiction is False
-        assert fuse.open_questions == []
-
-    def test_contradiction_flag(self):
-        fuse = FusionOutput(
-            host_id="aa:bb:cc:dd:ee:ff",
-            mac="AA:BB:CC:DD:EE:FF",
-            ip="10.0.0.1",
-            path="FUSED",
-            device_class=None,
-            confidence="MEDIUM",
-            reasoning_trace="contradiction detected",
-            contradiction=True,
-            contradictions=["C1 OUI_DICOM_VENDOR_MISMATCH"],
-        )
-        assert fuse.contradiction is True
-        assert "C1" in fuse.contradictions[0]

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from tapirxl.parser.deterministic import _consensus_from_pipelines, postprocess_pipeline_labels
+from tapirxl.parser.deterministic import _consensus_from_pipelines
 from tapirxl.parser.tables import (
     CONTRADICTION_MESSAGES,
     KNOWN_WS_TYPES_PREFIXES,
@@ -119,52 +119,27 @@ def route_host(env: dict) -> None:
 
     env["triage"]["contradiction_codes"] = env["triage"].get("contradiction_codes", [])
 
-    # Routing per ARCHITECTURE.md §6.1 / CLAUDE.md, first-match-wins.
-    #
-    # Note: contradictions are handled as an early-exit to ENQUEUE_FUSION even
-    # though the literal spec only forbids DETERMINISTIC_FINAL via "not contra".
-    # The defensive read keeps contradictory hosts off the deterministic path
-    # and out of STAMP_LOW (where their contradiction would be lost).
+    # Closed four-value routing enum, first-match-wins. Contradictions
+    # early-exit to AMBIGUOUS so the contradictory signal is preserved in
+    # downstream consumers instead of being lost in STAMP_LOW.
 
     if env["signal_count"] == 0 and not env["expert_flags"]:
         env["triage"]["routing"] = "SKIP"
-        env["_processing_path"] = "SKIP"
         return
 
     if env["triage"].get("contradiction_codes"):
-        env["triage"]["routing"] = "ENQUEUE_FUSION"
-        env["_processing_path"] = "ENQUEUE_FUSION"
+        env["triage"]["routing"] = "AMBIGUOUS"
         return
 
     if env["signal_count"] == 1 and not env["floor_triggers"]:
         env["triage"]["routing"] = "STAMP_LOW"
-        env["_processing_path"] = "STAMP_LOW"
         return
 
     if consensus_conf == "HIGH" and consensus_lbl and not amb:
         env["triage"]["routing"] = "DETERMINISTIC_FINAL"
-        env["_processing_path"] = "DETERMINISTIC_FINAL"
-        env["_deterministic_preset"] = {
-            "device_class": consensus_lbl,
-            "confidence": "HIGH",
-        }
         return
 
-    if amb:
-        env["triage"]["routing"] = (
-            "ENQUEUE_FULL"
-            if env.get("pipeline_3") and env.get("pipeline_2") and consensus_lbl is None
-            else "ENQUEUE_NORMALIZE"
-        )
-        env["_processing_path"] = env["triage"]["routing"]
-        return
-
-    if consensus_lbl and consensus_conf != "HIGH":
-        env["triage"]["routing"] = "ENQUEUE_FULL"
-        env["_processing_path"] = "ENQUEUE_FULL"
-    else:
-        env["triage"]["routing"] = "ENQUEUE_FUSION"
-        env["_processing_path"] = "ENQUEUE_FUSION"
+    env["triage"]["routing"] = "AMBIGUOUS"
 
 
 def triage_gate(
@@ -172,8 +147,8 @@ def triage_gate(
 ) -> tuple[list[dict], list[dict], list[dict], list[dict]]:
     skip: list[dict] = []
     stamp_low: list[dict] = []
-    fusion_queue: list[dict] = []
     deterministic: list[dict] = []
+    ambiguous: list[dict] = []
 
     for row in register:
         routing = row.get("triage", {}).get("routing")
@@ -184,14 +159,6 @@ def triage_gate(
         elif routing == "DETERMINISTIC_FINAL":
             deterministic.append(row)
         else:
-            fusion_queue.append(row)
+            ambiguous.append(row)
 
-    return skip, stamp_low, deterministic, fusion_queue
-
-
-def retriage_after_normalization(host: dict) -> None:
-    """Re-score routing after deterministic + LLM normalization touched ambiguous fields."""
-    host.setdefault("lm_envelope", {"ambiguous_fields": []})
-    contradiction_scan(host)
-    postprocess_pipeline_labels(host)
-    route_host(host)
+    return skip, stamp_low, deterministic, ambiguous

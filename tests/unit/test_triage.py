@@ -24,8 +24,8 @@ class TestRouteHostSpecOrdering:
 
         assert env["triage"]["routing"] == "SKIP"
 
-    def test_contradiction_codes_force_fusion_before_deterministic(self) -> None:
-        """Defensive deviation from spec: contradictions early-exit to fusion."""
+    def test_contradiction_codes_force_ambiguous_before_deterministic(self) -> None:
+        """Contradictions early-exit to AMBIGUOUS rather than DETERMINISTIC_FINAL."""
         env = _bare_envelope()
         env["signal_count"] = 3
         env["triage"]["contradiction_codes"] = ["C1"]
@@ -40,7 +40,7 @@ class TestRouteHostSpecOrdering:
 
         route_host(env)
 
-        assert env["triage"]["routing"] == "ENQUEUE_FUSION"
+        assert env["triage"]["routing"] == "AMBIGUOUS"
 
     def test_single_signal_no_floor_triggers_routes_stamp_low(self) -> None:
         """STAMP_LOW must beat DETERMINISTIC_FINAL when signal_count == 1."""
@@ -56,12 +56,11 @@ class TestRouteHostSpecOrdering:
 
         assert env["triage"]["routing"] == "STAMP_LOW"
 
-    def test_high_consensus_with_ambiguous_fields_routes_normalize(self) -> None:
+    def test_high_consensus_with_ambiguous_fields_routes_ambiguous(self) -> None:
         """Regression: HIGH consensus must NOT short-circuit when amb fields exist.
 
-        This is the routing bug fixed in this commit — previously HIGH consensus
-        sent the host to DETERMINISTIC_FINAL even with unresolved WS-D types,
-        skipping normalization entirely.
+        Previously HIGH consensus sent the host to DETERMINISTIC_FINAL even
+        with unresolved WS-D types, skipping any downstream disambiguation.
         """
         env = _bare_envelope()
         env["signal_count"] = 3
@@ -77,11 +76,7 @@ class TestRouteHostSpecOrdering:
 
         route_host(env)
 
-        assert env["triage"]["routing"] in (
-            "ENQUEUE_NORMALIZE",
-            "ENQUEUE_FULL",
-        )
-        assert env["triage"]["routing"] != "DETERMINISTIC_FINAL"
+        assert env["triage"]["routing"] == "AMBIGUOUS"
 
     def test_high_consensus_no_ambiguous_routes_deterministic_final(self) -> None:
         """The positive case: HIGH consensus + no ambiguity → DETERMINISTIC_FINAL."""
@@ -101,4 +96,3 @@ class TestRouteHostSpecOrdering:
         route_host(env)
 
         assert env["triage"]["routing"] == "DETERMINISTIC_FINAL"
-        assert env["_deterministic_preset"]["confidence"] == "HIGH"

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 
@@ -51,7 +52,7 @@ def main(argv: list[str] | None = None) -> Path:
     assemble_timestamps(scenarios, args.seed_time)
     flat_pkts = [pkt for _, pkts in scenarios for pkt in pkts]
     result = write_pcap_packets(outp, flat_pkts)
-    print(result)
+    print(result, file=sys.stderr)
     return result
 
 

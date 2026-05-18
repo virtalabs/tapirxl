@@ -225,6 +225,9 @@ class DeterministicConsensus(BaseModel):
     supporting_signals: list[str] = Field(default_factory=list)
 
 
+TriageRouting = Literal["SKIP", "STAMP_LOW", "DETERMINISTIC_FINAL", "AMBIGUOUS"]
+
+
 class TriageBlock(BaseModel):
     model_config = ConfigDict(extra="allow")
 
@@ -235,7 +238,7 @@ class TriageBlock(BaseModel):
     deterministic_consensus: DeterministicConsensus = Field(default_factory=DeterministicConsensus)
     deterministic_contradictions: list[str] = Field(default_factory=list)
     contradiction_codes: list[str] = Field(default_factory=list)
-    routing: str | None = None
+    routing: TriageRouting | None = None
 
 
 # ── LM envelope block ──────────────────────────────────────────────────────────
@@ -252,17 +255,8 @@ class AmbiguousFieldEntry(BaseModel):
     host_context: dict[str, Any] = Field(default_factory=dict)
 
 
-class FusionEnvelopeSummary(BaseModel):
-    deterministic_consensus: DeterministicConsensus = Field(default_factory=DeterministicConsensus)
-    ambiguous_field_count: int = 0
-    signal_count: int = 0
-    pipelines_fired: list[int] = Field(default_factory=list)
-    floor_triggers: list[str] = Field(default_factory=list)
-
-
 class LmEnvelopeBlock(BaseModel):
     ambiguous_fields: list[AmbiguousFieldEntry] = Field(default_factory=list)
-    fusion_envelope: FusionEnvelopeSummary = Field(default_factory=FusionEnvelopeSummary)
 
 
 # ── EthernetBlock ──────────────────────────────────────────────────────────────
@@ -281,9 +275,13 @@ class EthernetBlock(BaseModel):
 class HostEnvelope(BaseModel):
     """Canonical per-MAC record. Primary key is host_id (MAC). IP is observational.
     Pipeline blocks are None (absent) when the pipeline did not fire — never empty dicts.
+
+    Top-level fields are closed (`extra="forbid"`); sub-block models retain
+    `extra="allow"` so extractor-side field drift is tolerated until the
+    sub-block shapes are tightened in a later phase.
     """
 
-    model_config = ConfigDict(extra="allow")
+    model_config = ConfigDict(extra="forbid")
 
     host_id: str  # lowercase colon-delimited MAC
     oui_vendor: str = "UNKNOWN"
