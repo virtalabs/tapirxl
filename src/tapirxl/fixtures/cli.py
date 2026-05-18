@@ -1,4 +1,4 @@
-"""CLI entry point for `mdt-fixtures` — regenerates the synthetic PCAP."""
+"""CLI entry point for `tapirxl-fixtures` — regenerates the synthetic PCAP."""
 
 from __future__ import annotations
 

@@ -123,10 +123,10 @@ dependencies = ["pyshark", "dspy-ai>=2.4", "ollama", "jinja2",
                 "jinja-markdown2", "pydantic>=2", "typer"]
 
 [project.scripts]
-mdt          = "tapirxl.cli:app"
-mdt-parse    = "tapirxl.parser.cli:main"
-mdt-agent    = "tapirxl.agent.cli:main"
-mdt-fixtures = "tapirxl.fixtures.cli:main"
+tapirxl          = "tapirxl.cli:app"
+tapirxl-parse    = "tapirxl.parser.cli:main"
+tapirxl-agent    = "tapirxl.agent.cli:main"
+tapirxl-fixtures = "tapirxl.fixtures.cli:main"
 
 [dependency-groups]
 dev = ["ruff", "pytest", "pytest-cov", "mypy"]
@@ -614,22 +614,22 @@ both tiers) 27–88 min; v3.0 (deterministic-first + 3B norm) 9–22 min.
 
 ```bash
 # Today (transitional, single binary)
-mdt agent <pcap>                  # full pipeline → reports/
-mdt agent <pcap> --no-llm         # triage only, no Ollama
-mdt agent <pcap> --json           # full pipeline → JSONL on stdout
-mdt agent <pcap> --rlm            # RLM fusion (experimental)
-mdt agent --compile               # FuseSignals → agents/compiled_fusion.json
-mdt agent --compile-normalize     # NormalizeSignal → agents/compiled_normalize.json
-mdt agent <pcap> --filter H       # HIGH-confidence only in markdown
-mdt agent <pcap> --models PATH    # alternate models.toml
-mdt agent <pcap> --lm NAME        # override [lm].model
-mdt agent <pcap> --sub-lm NAME    # override [sub_lm].model
-mdt agent <pcap> --sub-lm-fallback # use [sub_lm.fallback]
-mdt fixtures                      # regenerate synthetic Philips demo PCAP
+tapirxl agent <pcap>                  # full pipeline → reports/
+tapirxl agent <pcap> --no-llm         # triage only, no Ollama
+tapirxl agent <pcap> --json           # full pipeline → JSONL on stdout
+tapirxl agent <pcap> --rlm            # RLM fusion (experimental)
+tapirxl agent --compile               # FuseSignals → agents/compiled_fusion.json
+tapirxl agent --compile-normalize     # NormalizeSignal → agents/compiled_normalize.json
+tapirxl agent <pcap> --filter H       # HIGH-confidence only in markdown
+tapirxl agent <pcap> --models PATH    # alternate models.toml
+tapirxl agent <pcap> --lm NAME        # override [lm].model
+tapirxl agent <pcap> --sub-lm NAME    # override [sub_lm].model
+tapirxl agent <pcap> --sub-lm-fallback # use [sub_lm.fallback]
+tapirxl fixtures                      # regenerate synthetic Philips demo PCAP
 
 # After domain split (§16) — same package, separate processes
-mdt parse <pcap>                  # envelope JSONL on stdout
-mdt parse <pcap> | mdt agent      # piped; agent reads stdin
+tapirxl parse <pcap>                  # envelope JSONL on stdout
+tapirxl parse <pcap> | tapirxl agent  # piped; agent reads stdin
 ```
 
 ---
@@ -754,7 +754,7 @@ tapirxl/                                  ← git root
 │   ├── core/                             # MAC, OUI, PHI redact, enums, IP sort, time
 │   ├── schemas/                          # pydantic v2 models (envelope, inventory, fusion)
 │   ├── parser/                           # FUTURE SERVICE 1 — deterministic, no LM
-│   │   ├── cli.py                        # mdt-parse → envelope JSONL stdout
+│   │   ├── cli.py                        # tapirxl-parse → envelope JSONL stdout
 │   │   ├── pipeline.py                   # orchestrator
 │   │   ├── envelope_builder.py
 │   │   ├── deterministic.py              # per-pipeline labelers
@@ -764,7 +764,7 @@ tapirxl/                                  ← git root
 │   │   ├── adapters/                     # pyshark_source, stdout_sink, rest_sink (future)
 │   │   └── extractors/                   # one file per protocol (§4)
 │   ├── agent/                            # FUTURE SERVICE 2 — LM tiers + reporting
-│   │   ├── cli.py                        # mdt-agent
+│   │   ├── cli.py                        # tapirxl-agent
 │   │   ├── config.py                     # models.toml → ModelConfig
 │   │   ├── normalize.py / fusion.py / inventory.py
 │   │   ├── ports.py                      # LMRunner, EnvelopeSource, InventorySink
@@ -794,7 +794,7 @@ under `static/`; **extract `NORM_MODEL` / `FUSE_MODEL` into `models.toml`**
 produces bit-identical output.
 
 **M1 — `src/` layout.** Wrap the monolith verbatim as
-`src/tapirxl/_monolith.py`. `cli.py` exposes the `mdt` typer app; subcommands
+`src/tapirxl/_monolith.py`. `cli.py` exposes the `tapirxl` typer app; subcommands
 shell into monolith functions. Smoke test for synthetic PCAP. Legacy script
 paths still work via shim.
 
@@ -806,14 +806,14 @@ sort, CPE enums into `core/`. Express envelope as pydantic v2 in
 `parser/extractors/<protocol>.py`. Move `extract_packets`, envelope merging,
 labelers, triage into `parser/{pipeline,envelope_builder,deterministic,triage,tables}.py`.
 Define `parser/ports.py` (Protocols) and `adapters/{pyshark_source,stdout_sink}.py`.
-Add `mdt parse <pcap>` subcommand. Exit: `mdt parse pcap/x.pcap | jq .` yields
+Add `tapirxl parse <pcap>` subcommand. Exit: `tapirxl parse pcap/x.pcap | jq .` yields
 one envelope per line.
 
 **M4 — Agent subpackage.** Move signatures, modules, normalize/fusion
 orchestrators, JSONL emitter, compile-mode. Promote the M0 `models.toml` shim
 into `agent/config.py` (pydantic `ModelConfig`). Define `agent/ports.py` and
 `adapters/{ollama_lm,stdin_source,markdown_sink,jsonl_sink}.py`. `ollama_lm.py`
-is the only adapter that constructs `dspy.LM`. Exit: `mdt parse … | mdt agent
+is the only adapter that constructs `dspy.LM`. Exit: `tapirxl parse … | tapirxl agent
 --no-llm` matches monolith output.
 
 **M5 — Jinja template.** Extract `_render_record` + `write_inventory` into
@@ -827,7 +827,7 @@ the demo PCAP.
 **M7 — Cleanup.** Drop monolith scripts. Drop `ARCHITECTURE.txt` and
 `PROPOSED_ARCHITECTURE.txt`. Bump `pyproject.toml` to `0.3.0`.
 
-**M8 (optional) — Domain service split.** Promote `mdt-parse` and `mdt-agent`
+**M8 (optional) — Domain service split.** Promote `tapirxl-parse` and `tapirxl-agent`
 to standalone processes / containers; the seam is already the envelope JSONL
 boundary, so no code changes inside the package.
 

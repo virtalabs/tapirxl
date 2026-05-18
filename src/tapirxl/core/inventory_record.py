@@ -1,8 +1,8 @@
 """Deterministic InventoryRecord builder.
 
 Pure functions over HostEnvelope dicts; no LM, no project imports outside
-`core/`. Lives in `core/` because both `parser/cli.py` (for `mdt parse --json`)
-and `agent/inventory.py` (for `mdt agent --json` + the markdown report)
+`core/`. Lives in `core/` because both `parser/cli.py` (for `tapirxl parse --json`)
+and `agent/inventory.py` (for `tapirxl agent --json` + the markdown report)
 consume it (see CLAUDE.md N1 — `parser/` and `agent/` must not import each
 other).
 

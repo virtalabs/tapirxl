@@ -190,7 +190,7 @@ class TestDeterministicConfidencePropagation:
     """Deterministic routing must carry confidence even with no_llm=True.
 
     Regression guard for the `not no_llm` gate that previously suppressed
-    DETERMINISTIC_FINAL consensus on the `mdt parse --json` path.
+    DETERMINISTIC_FINAL consensus on the `tapirxl parse --json` path.
     """
 
     def test_effective_inventory_conf_deterministic_final_returns_high(self) -> None:

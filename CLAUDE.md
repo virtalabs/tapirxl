@@ -22,9 +22,9 @@ just parse pcap/x.pcap         # InventoryRecord JSONL on stdout
 just parse-verbose pcap/x.pcap # raw HostEnvelope JSONL on stdout
 ```
 
-Entry points on `main` (from `[project.scripts]`): `mdt`, `mdt-parse`, `mdt-fixtures`.
+Entry points on `main` (from `[project.scripts]`): `tapirxl`, `tapirxl-parse`, `tapirxl-fixtures`.
 
-The agent tier (`mdt agent`, `mdt-agent`, `just agent`, `just agent-no-llm`,
+The agent tier (`tapirxl agent`, `tapirxl-agent`, `just agent`, `just agent-no-llm`,
 `just compile-fusion`, `just compile-normalize`) and its DSPy/Ollama/Jinja
 dependencies live on the `experimental/agent` branch only — see "Branching
 Model" below.
@@ -262,8 +262,8 @@ class FuseSignals(dspy.Signature):
 
 Trunk-based with one long-lived experimental branch:
 
-- **`main`** — stable, releasable. Contains `core/`, `schemas/`, `parser/`, `fixtures/` and the deterministic `mdt parse [--json]` and `mdt fixtures` surface. Runtime deps: `pyshark`, `pydantic`, `typer` only. No `dspy`, no `ollama`, no `jinja2`. No `agent/` subtree.
-- **`experimental/agent`** — long-lived branch carrying the DSPy/Ollama agent tier (`agent/`, `models.toml`, `tests/fixtures/golden_report.md`, the `mdt agent` Typer subcommand, the `mdt-agent` script entry, and the agent-specific justfile recipes). Open as a draft PR against main. Rebase onto main as the stable layer evolves.
+- **`main`** — stable, releasable. Contains `core/`, `schemas/`, `parser/`, `fixtures/` and the deterministic `tapirxl parse [--json]` and `tapirxl fixtures` surface. Runtime deps: `pyshark`, `pydantic`, `typer` only. No `dspy`, no `ollama`, no `jinja2`. No `agent/` subtree.
+- **`experimental/agent`** — long-lived branch carrying the DSPy/Ollama agent tier (`agent/`, `models.toml`, `tests/fixtures/golden_report.md`, the `tapirxl agent` Typer subcommand, the `tapirxl-agent` script entry, and the agent-specific justfile recipes). Open as a draft PR against main. Rebase onto main as the stable layer evolves.
 
 When working on agent-tier features (LM normalize, fusion, RLM, golden report, compiled DSPy modules), branch from `experimental/agent`, not `main`. When working on parser, schemas, core utilities, fixtures, or deterministic logic, branch from `main`.
 
@@ -272,12 +272,12 @@ When working on agent-tier features (LM normalize, fusion, RLM, golden report, c
 Migration from the monolith (`poc_agentic_passive_device_identification.py`, ~4000 lines, retired) was milestone-gated:
 
 - **M0** [done, main]: `just agent-no-llm` works on `experimental/agent`, `models.toml` exists on `experimental/agent`, artifact dirs gitignored.
-- **M1** [done, main]: `mdt` entry point installed.
+- **M1** [done, main]: `tapirxl` entry point installed.
 - **M2** [done, main]: pydantic v2 envelope in `schemas/`; `core/` extracted.
-- **M3** [done, main]: `mdt parse pcap/x.pcap | jq .` yields one envelope per line.
-- **M4** [experimental/agent only]: `mdt parse … | mdt agent --no-llm` matches monolith output; `agent/config.py` owns model loading.
+- **M3** [done, main]: `tapirxl parse pcap/x.pcap | jq .` yields one envelope per line.
+- **M4** [experimental/agent only]: `tapirxl parse … | tapirxl agent --no-llm` matches monolith output; `agent/config.py` owns model loading.
 - **M5** [experimental/agent only]: Jinja template renders identical report (golden test).
-- **M6** [done, main]: `just fixture` works via `mdt-fixtures`.
+- **M6** [done, main]: `just fixture` works via `tapirxl-fixtures`.
 - **M7** [done, main]: monolith and legacy `.txt` arch docs deleted; tests green.
 
 When working on any milestone, verify the **exit criterion** before marking complete. Do not skip milestones.

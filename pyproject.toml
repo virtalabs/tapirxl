@@ -9,9 +9,9 @@ dependencies = [
 ]
 
 [project.scripts]
-mdt          = "tapirxl.cli:app"
-mdt-parse    = "tapirxl.parser.cli:main"
-mdt-fixtures = "tapirxl.fixtures.cli:main"
+tapirxl          = "tapirxl.cli:app"
+tapirxl-parse    = "tapirxl.parser.cli:main"
+tapirxl-fixtures = "tapirxl.fixtures.cli:main"
 
 [dependency-groups]
 dev = ["ruff", "pytest", "pytest-cov", "mypy", "scapy", "pydicom", "pynetdicom"]
