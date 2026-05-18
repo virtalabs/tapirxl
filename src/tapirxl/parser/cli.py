@@ -1,4 +1,4 @@
-"""Entry point for `mdt parse` — emits JSONL on stdout.
+"""Entry point for `tapirxl parse` — emits JSONL on stdout.
 
 Default output: one HostEnvelope JSON per line (the raw deterministic shape
 from the parser pipeline). With ``emit_inventory=True``, the output is one

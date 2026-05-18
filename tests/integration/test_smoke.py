@@ -1,4 +1,4 @@
-"""Smoke test: `mdt parse <pcap> --json` emits schema-conformant InventoryRecord JSONL."""
+"""Smoke test: `tapirxl parse <pcap> --json` emits schema-conformant InventoryRecord JSONL."""
 
 from __future__ import annotations
 
@@ -26,7 +26,7 @@ _INVENTORY_KEYS: frozenset[str] = frozenset(
 
 
 def test_parse_json_emits_inventory_records() -> None:
-    """`mdt parse <pcap> --json` emits one schema-conformant InventoryRecord per host."""
+    """`tapirxl parse <pcap> --json` emits one schema-conformant InventoryRecord per host."""
     if not FIXTURE_PCAP.exists():
         pytest.skip(f"Fixture PCAP not found: {FIXTURE_PCAP}")
     if not SCHEMA_PATH.exists():

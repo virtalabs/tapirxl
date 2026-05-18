@@ -24,12 +24,12 @@ typecheck:
 
 # Regenerate synthetic PCAP fixture
 fixture:
-    uv run mdt fixtures
+    uv run tapirxl fixtures
 
 # Parse PCAP → InventoryRecord JSONL (schema: schemas/inventory_record.schema.json)
 parse PCAP:
-    uv run mdt parse {{PCAP}} --json
+    uv run tapirxl parse {{PCAP}} --json
 
 # Parse PCAP → full HostEnvelope JSONL (raw deterministic shape, all pipeline blocks)
 parse-verbose PCAP:
-    uv run mdt parse {{PCAP}}
+    uv run tapirxl parse {{PCAP}}

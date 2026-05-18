@@ -7,7 +7,7 @@ from typing import Annotated
 import typer
 
 app = typer.Typer(
-    name="mdt",
+    name="tapirxl",
     help="Medical Device Traffic — passive device identification",
     no_args_is_help=True,
 )
