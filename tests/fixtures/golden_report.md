@@ -18,7 +18,7 @@
 | DETERMINISTIC_FINAL (consensus sans fusion) | 2 |
 | Submitted to LM fusion / normalization path | 4 |
 | Rows visible — LOW stamped hosts | 2 |
-| Rows visible — TRIAGE_ONLY (fusion pending) | 6 |
+| Rows visible — TRIAGE_ONLY (fusion pending) | 4 |
 
 ---
 
@@ -108,237 +108,6 @@
 - SSDP hints: `[]` …
 - WS-Discovery UUID: `50484248-4332-3638-3631-0009fbbd756d`
 - WS-Discovery Types: urn:ihe-pcd:device:patientmonitor
-- mDNS hostname: —
-- mDNS TXT: —
-- DNS-SD services: —
-- LLMNR queries: —
-- LLMNR hostname: —
-
-**Contradictions (deterministic codes):**
-None
-
-**Expert Anomalies:** None
-
----
-## 10.10.10.30 — Unclassified (triage only)
-
-| Field | Value |
-|-------|-------|
-| IP | `10.10.10.30` |
-| MAC | `00:90:20:AA:BB:01` |
-| Host ID | `00:90:20:aa:bb:01` |
-| OUI Vendor | Philips Analytical X-Ray B.V. |
-| Hostname | BRILL-CT01 |
-| Vendor (CPE) | `philips` |
-| Product (CPE) | `brilliance_ict` |
-| Device class (enum) | `—` |
-| Pipelines fired | `2, 3` |
-| Processing path | `DETERMINISTIC_FINAL` |
-| Triage routing | `DETERMINISTIC_FINAL` |
-| Deterministic consensus | `Philips modality / DICOM-speaking device (HIGH)` |
-| Confidence | **TRIAGE_ONLY** |
-| Device Class | Unclassified (triage only) |
-
-### Pipeline blocks (deterministic excerpts)
-
-- **PIPELINE_1:** *(not triggered)*
-
-- **PIPELINE_2:** deterministic `Likely Windows or Windows-derived stack (TTL≈128)` (**LOW**)
-```json
-{
-  "syn_fingerprints": [
-    {
-      "syn_features": {
-        "ttl": "128",
-        "window_size": "8192",
-        "tcp_options_repr": "02:04:05:b4"
-      },
-      "deterministic_syn_label": "Likely Windows or Windows-derived stack (TTL\u2248128)",
-      "confidence_hint": "LOW"
-    }
-  ],
-  "deterministic_label": "Likely Windows or Windows-derived stack (TTL\u2248128)",
-  "deterministic_confidence": "LOW"
-}
-```
-
-- **PIPELINE_3:** deterministic `Philips modality / DICOM-speaking device` (**HIGH**)
-```json
-{
-  "dhcp": [
-    {
-      "option12_hostname_hint": "BRILL-CT01",
-      "option60_vendor_class": "Philips Brilliance iCT",
-      "option55_ordered_guess": [
-        1,
-        3,
-        6,
-        15,
-        28,
-        51,
-        58,
-        59
-      ],
-      "option55_key_guess": "1,3,6,15,28,51,58,59",
-      "fingerbank_dhcp_hit": "",
-      "vendor_medical_hint": "",
-      "dhcp_message_type": "discover",
-      "dhcp_text_excerpt": "Layer DHCP\n:\tMessage type: Boot Request (1)\n\tHardware type: Ethernet (0x01)\n\tHardware address length: 6\n\tHops: 0\n\tTransaction ID: 0x33cc0001\n\tSeconds elapsed: 0\n\tBootp flags: 0x0000 (Unicast)\n\t0... .... .... .... = Broadcast flag: Unicast\n\t.000 0000 0000 0000 = Reserved flags: 0x0000\n\tClient IP address: 0.0.0.0\n\tYour (client) IP address: 0.0.0.0\n\tNext server IP address: 0.0.0.0\n\tRelay agent IP address: 0.0.0.0\n\tClient MAC address: 00:90:20:aa:bb:01\n\tClient hardware address padding: 00000000000000000000\n\tServer host name not given\n\tBoot file name not given\n\tMagic cookie: DHCP\n\tOption: (53) DHCP Message Type (Discover)\n\tLength: 1\n\tDHCP: Discover (1)\n\tHost Name: BRILL-CT01\n\tVendor class identifier: Philips Brilliance iCT\n\tParameter Request List Item: (1) Subnet Mask\n\tOption End: 255\n\tOption: (12) Host Name\n\tOption: (60) Vendor class identifier\n\tOption: (55) Parameter Request List\n\tOption: (255) End\n\tLength: 10\n\tLength: 22\n\tLength: 8\n\tParameter Request List Item: (3) Router\n\tParameter Request List Item: (6) Domain Name Server\n\tParameter Request List Item: (15) Domain Name\n\tParameter Request List Item: (28) Broadcast Address\n\tParameter Request List Item: (51) IP Address Lease Time\n\tParameter Request List Item: (58) Renewal Time Value\n\tParameter Request List Item: (59) Rebinding Time Value\n"
-    },
-    {
-      "option12_hostname_hint": "BRILL-CT01",
-      "option60_vendor_class": "Philips Brilliance iCT",
-      "option55_ordered_guess": [
-        1,
-        3,
-        6,
-        15,
-        28,
-        51,
-        58,
-        59
-      ],
-      "option55_key_guess": "1,3,6,15,28,51,58,59",
-      "fingerbank_dhcp_hit": "",
-      "vendor_medical_hint": "",
-      "dhcp_message_type": "request",
-      "dhcp_text_excerpt": "Layer DHCP\n:\tMessage type: Boot Request (1)\n\tHardware type: Ethernet (0x01)\n\tHardware address length: 6\n\tHops: 0\n\tTransaction ID: 0x33cc0002\n\tSeconds elapsed: 2\n\tBootp flags: 0x0000 (Unicast)\n\t0... .... .... .... = Broadcast flag: Unicast\n\t.000 0000 0000 0000 = Reserved flags: 0x0000\n\tClient IP address: 0.0.0.0\n\tYour (client) IP address: 0.0.0.0\n\tNext server IP address: 0.0.0.0\n\tRelay agent IP address: 0.0.0.0\n\tClient MAC address: 00:90:20:aa:bb:01\n\tClient hardware address padding: 00000000000000000000\n\tServer host name not given\n\tBoot file name not given\n\tMagic cookie: DHCP\n\tOption: (53) DHCP Message Type (Request)\n\tLength: 1\n\tDHCP: Request (3)\n\tHost Name: BRILL-CT01\n\tVendor class identifier: Philips Brilliance iCT\n\tRequested IP Address: 10.10.10.30\n\tParameter Request List Item: (1) Subnet Mask\n\tOption End: 255\n\tOption: (12) Host Name\n\tOption: (60) Vendor class identifier\n\tOption: (50) Requested IP Address (10.10.10.30)\n\tOption: (55) Parameter Request List\n\tOption: (255) End\n\tLength: 10\n\tLength: 22\n\tLength: 4\n\tLength: 8\n\tParameter Request List Item: (3) Router\n\tParameter Request List Item: (6) Domain Name Server\n\tParameter Request List Item: (15) Domain Name\n\tParameter Request List Item: (28) Broadcast Address\n\tParameter Request List Item: (51) IP Address Lease Time\n\tParameter Request List Item: (58) Renewal Time Value\n\tParameter Request List Item: (59) Rebinding Time Value\n"
-    }
-  ],
-  "dicom_association": [
-    {
-      "dicom_association": {
-        "pdu_type_byte": "",
-        "implementation_class_uid": "",
-        "implementation_version_name": "",
-        "sop_class_hints": [],
-        "philips_image_uid_arc_hits": [],
-        "dicom_modality": "",
-        "dicom_manufacturer": "",
-        "dicom_manufacturer_model": "",
-        "dicom_software_versions": ""
-      }
-    },
-    {
-      "dicom_association": {
-        "pdu_type_byte": "",
-        "implementation_class_uid": "",
-        "implementation_version_name": "",
-        "sop_class_hints": [],
-        "philips_image_uid_arc_hits": [],
-        "dicom_modality": "",
-        "dicom_manufacturer": "",
-        "dicom_manufacturer_model": "",
-        "dicom_software_versions": ""
-      }
-    },
-    {
-      "dicom_association": {
-        "pdu_type_byte": "01",
-        "implementation_class_uid": "",
-        "implementation_version_name": "",
-        "sop_class_hints": [
-          "1.3.46.670589.30.->Philips Eleva platform",
-          "1.3.46.->Philips Healthcare"
-        ],
-        "philips_image_uid_arc_hits": [],
-        "dicom_modality": "",
-        "dicom_manufacturer": "",
-        "dicom_manufacturer_model": "",
-        "dicom_software_versions": ""
-      }
-    },
-    {
-      "dicom_association": {
-        "pdu_type_byte": "",
-        "implementation_class_uid": "",
-        "implementation_version_name": "",
-        "sop_class_hints": [],
-        "philips_image_uid_arc_hits": [],
-        "dicom_modality": "",
-        "dicom_manufacturer": "",
-        "dicom_manufacturer_model": "",
-        "dicom_software_versions": ""
-      }
-    },
-    {
-      "dicom_association": {
-        "pdu_type_byte": "04",
-        "implementation_class_uid": "",
-        "implementation_version_name": "",
-        "sop_class_hints": [],
-        "philips_image_uid_arc_hits": [
-          "1.2.840.113704."
-        ],
-        "dicom_modality": "",
-        "dicom_manufacturer": "",
-        "dicom_manufacturer_model": "",
-        "dicom_software_versions": ""
-      }
-    },
-    {
-      "dicom_association": {
-        "pdu_type_byte": "04",
-        "implementation_class_uid": "",
-        "implementation_version_name": "",
-        "sop_class_hints": [],
-        "philips_image_uid_arc_hits": [],
-        "dicom_modality": "CT",
-        "dicom_manufacturer": "Philips",
-        "dicom_manufacturer_model": "Brilliance iCT",
-        "dicom_software_versions": "4.1.6"
-      }
-    },
-    {
-      "dicom_association": {
-        "pdu_type_byte": "",
-        "implementation_class_uid": "",
-        "implementation_version_name": "",
-        "sop_class_hints": [],
-        "philips_image_uid_arc_hits": [],
-        "dicom_modality": "",
-        "dicom_manufacturer": "",
-        "dicom_manufacturer_model": "",
-        "dicom_software_versions": ""
-      }
-    },
-    {
-      "dicom_association": {
-        "pdu_type_byte": "",
-        "implementation_class_uid": "",
-        "implementation_version_name": "",
-        "sop_class_hints": [],
-        "philips_image_uid_arc_hits": [],
-        "dicom_modality": "",
-        "dicom_manufacturer": "",
-        "dicom_manufacturer_model": "",
-        "dicom_software_versions": ""
-      }
-    },
-    {
-      "dicom_association": {
-        "pdu_type_byte": "",
-        "implementation_class_uid": "",
-        "implementation_version_name": "",
-        "sop_class_hints": [],
-        "philips_image_uid_arc_hits": [],
-        "dicom_modality": "",
-        "dicom_manufacturer": "",
-        "dicom_manufacturer_model": "",
-        "dicom_software_versions": ""
-      }
-    }
-  ],
-  "deterministic_label": "Philips modality / DICOM-speaking device",
-  "deterministic_confidence": "HIGH"
-}
-```
-
-### Broadcast / legacy flat summary
-
-- SSDP hints: `[]` …
-- WS-Discovery UUID: `—`
-- WS-Discovery Types: —
 - mDNS hostname: —
 - mDNS TXT: —
 - DNS-SD services: —
@@ -1014,7 +783,358 @@ None
 > Single signal: single broadcast signal (type unknown). Insufficient for multi-signal classification without further capture.
 
 ---
-## 10.10.20.20 — Unclassified (triage only)
+## 10.10.20.30 — Unclassified (triage only)
+
+| Field | Value |
+|-------|-------|
+| IP | `10.10.20.30` |
+| MAC | `00:50:56:8B:CA:FE` |
+| Host ID | `00:50:56:8b:ca:fe` |
+| OUI Vendor | VMware |
+| Hostname | PACSARCH01 |
+| Vendor (CPE) | `microsoft` |
+| Product (CPE) | `windows_server` |
+| Device class (enum) | `server` |
+| Pipelines fired | `2, 3` |
+| Processing path | `ENQUEUE_FUSION` |
+| Triage routing | `ENQUEUE_FUSION` |
+| Deterministic consensus | `— (—)` |
+| Confidence | **TRIAGE_ONLY** |
+| Device Class | Unclassified (triage only) |
+
+### Pipeline blocks (deterministic excerpts)
+
+- **PIPELINE_1:** *(not triggered)*
+
+- **PIPELINE_2:** deterministic `—` (**LOW**)
+```json
+{
+  "smb2_negotiate": [
+    {
+      "dialects_sample": "",
+      "dialect_revision": "",
+      "signing_enabled": ""
+    },
+    {
+      "dialects_sample": "",
+      "dialect_revision": "",
+      "signing_enabled": ""
+    }
+  ],
+  "deterministic_label": "",
+  "deterministic_confidence": "LOW"
+}
+```
+
+- **PIPELINE_3:** deterministic `—` (**LOW**)
+```json
+{
+  "dhcp": [
+    {
+      "option12_hostname_hint": "PACSARCH01",
+      "option60_vendor_class": "MSFT 5.0",
+      "option55_ordered_guess": [
+        1,
+        3,
+        6,
+        15,
+        31,
+        33,
+        43,
+        44,
+        46,
+        47,
+        119,
+        121,
+        249,
+        252
+      ],
+      "option55_key_guess": "1,3,6,15,31,33,43,44,46,47,119,121,249,252",
+      "fingerbank_dhcp_hit": "",
+      "vendor_medical_hint": "",
+      "dhcp_message_type": "discover",
+      "dhcp_text_excerpt": "Layer DHCP\n:\tMessage type: Boot Request (1)\n\tHardware type: Ethernet (0x01)\n\tHardware address length: 6\n\tHops: 0\n\tTransaction ID: 0x66ff0001\n\tSeconds elapsed: 0\n\tBootp flags: 0x0000 (Unicast)\n\t0... .... .... .... = Broadcast flag: Unicast\n\t.000 0000 0000 0000 = Reserved flags: 0x0000\n\tClient IP address: 0.0.0.0\n\tYour (client) IP address: 0.0.0.0\n\tNext server IP address: 0.0.0.0\n\tRelay agent IP address: 0.0.0.0\n\tClient MAC address: 00:50:56:8b:ca:fe\n\tClient hardware address padding: 00000000000000000000\n\tServer host name not given\n\tBoot file name not given\n\tMagic cookie: DHCP\n\tOption: (53) DHCP Message Type (Discover)\n\tLength: 1\n\tDHCP: Discover (1)\n\tHost Name: PACSARCH01\n\tVendor class identifier: MSFT 5.0\n\tParameter Request List Item: (1) Subnet Mask\n\tOption End: 255\n\tOption: (12) Host Name\n\tOption: (60) Vendor class identifier\n\tOption: (55) Parameter Request List\n\tOption: (255) End\n\tLength: 10\n\tLength: 8\n\tLength: 14\n\tParameter Request List Item: (3) Router\n\tParameter Request List Item: (6) Domain Name Server\n\tParameter Request List Item: (15) Domain Name\n\tParameter Request List Item: (31) Perform Router Discover\n\tParameter Request List Item: (33) Static Route\n\tParameter Request List Item: (43) Vendor-Specific Information\n\tParameter Request List Item: (44) NetBIOS over TCP/IP Name Server\n\tParameter Request List Item: (46) NetBIOS over TCP/IP Node Type\n\tParameter Request List Item: (47) NetBIOS over TCP/IP Scope\n\tParameter Request List Item: (119) Domain Search\n\tParameter Request List Item: (121) Classless Static Route\n\tParameter Request List Item: (249) Private/Classless Static Route (Microsoft)\n\tParameter Request List Item: (252) Private/Proxy autodiscovery\n"
+    },
+    {
+      "option12_hostname_hint": "PACSARCH01",
+      "option60_vendor_class": "MSFT 5.0",
+      "option55_ordered_guess": [
+        1,
+        3,
+        6,
+        15,
+        31,
+        33,
+        43,
+        44,
+        46,
+        47,
+        119,
+        121,
+        249,
+        252
+      ],
+      "option55_key_guess": "1,3,6,15,31,33,43,44,46,47,119,121,249,252",
+      "fingerbank_dhcp_hit": "",
+      "vendor_medical_hint": "",
+      "dhcp_message_type": "request",
+      "dhcp_text_excerpt": "Layer DHCP\n:\tMessage type: Boot Request (1)\n\tHardware type: Ethernet (0x01)\n\tHardware address length: 6\n\tHops: 0\n\tTransaction ID: 0x66ff0002\n\tSeconds elapsed: 2\n\tBootp flags: 0x0000 (Unicast)\n\t0... .... .... .... = Broadcast flag: Unicast\n\t.000 0000 0000 0000 = Reserved flags: 0x0000\n\tClient IP address: 0.0.0.0\n\tYour (client) IP address: 0.0.0.0\n\tNext server IP address: 0.0.0.0\n\tRelay agent IP address: 0.0.0.0\n\tClient MAC address: 00:50:56:8b:ca:fe\n\tClient hardware address padding: 00000000000000000000\n\tServer host name not given\n\tBoot file name not given\n\tMagic cookie: DHCP\n\tOption: (53) DHCP Message Type (Request)\n\tLength: 1\n\tDHCP: Request (3)\n\tHost Name: PACSARCH01\n\tVendor class identifier: MSFT 5.0\n\tRequested IP Address: 10.10.20.30\n\tParameter Request List Item: (1) Subnet Mask\n\tOption End: 255\n\tOption: (12) Host Name\n\tOption: (60) Vendor class identifier\n\tOption: (50) Requested IP Address (10.10.20.30)\n\tOption: (55) Parameter Request List\n\tOption: (255) End\n\tLength: 10\n\tLength: 8\n\tLength: 4\n\tLength: 14\n\tParameter Request List Item: (3) Router\n\tParameter Request List Item: (6) Domain Name Server\n\tParameter Request List Item: (15) Domain Name\n\tParameter Request List Item: (31) Perform Router Discover\n\tParameter Request List Item: (33) Static Route\n\tParameter Request List Item: (43) Vendor-Specific Information\n\tParameter Request List Item: (44) NetBIOS over TCP/IP Name Server\n\tParameter Request List Item: (46) NetBIOS over TCP/IP Node Type\n\tParameter Request List Item: (47) NetBIOS over TCP/IP Scope\n\tParameter Request List Item: (119) Domain Search\n\tParameter Request List Item: (121) Classless Static Route\n\tParameter Request List Item: (249) Private/Classless Static Route (Microsoft)\n\tParameter Request List Item: (252) Private/Proxy autodiscovery\n"
+    }
+  ],
+  "deterministic_label": "",
+  "deterministic_confidence": "LOW"
+}
+```
+
+### Broadcast / legacy flat summary
+
+- SSDP hints: `[]` …
+- WS-Discovery UUID: `—`
+- WS-Discovery Types: —
+- mDNS hostname: —
+- mDNS TXT: —
+- DNS-SD services: —
+- LLMNR queries: PACSARCH01
+- LLMNR hostname: PACSARCH01
+
+**Contradictions (deterministic codes):**
+None
+
+**Expert Anomalies:** None
+
+---
+## 10.10.10.30 — Philips modality / DICOM-speaking device
+
+| Field | Value |
+|-------|-------|
+| IP | `10.10.10.30` |
+| MAC | `00:90:20:AA:BB:01` |
+| Host ID | `00:90:20:aa:bb:01` |
+| OUI Vendor | Philips Analytical X-Ray B.V. |
+| Hostname | BRILL-CT01 |
+| Vendor (CPE) | `philips` |
+| Product (CPE) | `brilliance_ict` |
+| Device class (enum) | `—` |
+| Pipelines fired | `2, 3` |
+| Processing path | `DETERMINISTIC_FINAL` |
+| Triage routing | `DETERMINISTIC_FINAL` |
+| Deterministic consensus | `Philips modality / DICOM-speaking device (HIGH)` |
+| Confidence | **HIGH** |
+| Device Class | Philips modality / DICOM-speaking device |
+
+### Pipeline blocks (deterministic excerpts)
+
+- **PIPELINE_1:** *(not triggered)*
+
+- **PIPELINE_2:** deterministic `Likely Windows or Windows-derived stack (TTL≈128)` (**LOW**)
+```json
+{
+  "syn_fingerprints": [
+    {
+      "syn_features": {
+        "ttl": "128",
+        "window_size": "8192",
+        "tcp_options_repr": "02:04:05:b4"
+      },
+      "deterministic_syn_label": "Likely Windows or Windows-derived stack (TTL\u2248128)",
+      "confidence_hint": "LOW"
+    }
+  ],
+  "deterministic_label": "Likely Windows or Windows-derived stack (TTL\u2248128)",
+  "deterministic_confidence": "LOW"
+}
+```
+
+- **PIPELINE_3:** deterministic `Philips modality / DICOM-speaking device` (**HIGH**)
+```json
+{
+  "dhcp": [
+    {
+      "option12_hostname_hint": "BRILL-CT01",
+      "option60_vendor_class": "Philips Brilliance iCT",
+      "option55_ordered_guess": [
+        1,
+        3,
+        6,
+        15,
+        28,
+        51,
+        58,
+        59
+      ],
+      "option55_key_guess": "1,3,6,15,28,51,58,59",
+      "fingerbank_dhcp_hit": "",
+      "vendor_medical_hint": "",
+      "dhcp_message_type": "discover",
+      "dhcp_text_excerpt": "Layer DHCP\n:\tMessage type: Boot Request (1)\n\tHardware type: Ethernet (0x01)\n\tHardware address length: 6\n\tHops: 0\n\tTransaction ID: 0x33cc0001\n\tSeconds elapsed: 0\n\tBootp flags: 0x0000 (Unicast)\n\t0... .... .... .... = Broadcast flag: Unicast\n\t.000 0000 0000 0000 = Reserved flags: 0x0000\n\tClient IP address: 0.0.0.0\n\tYour (client) IP address: 0.0.0.0\n\tNext server IP address: 0.0.0.0\n\tRelay agent IP address: 0.0.0.0\n\tClient MAC address: 00:90:20:aa:bb:01\n\tClient hardware address padding: 00000000000000000000\n\tServer host name not given\n\tBoot file name not given\n\tMagic cookie: DHCP\n\tOption: (53) DHCP Message Type (Discover)\n\tLength: 1\n\tDHCP: Discover (1)\n\tHost Name: BRILL-CT01\n\tVendor class identifier: Philips Brilliance iCT\n\tParameter Request List Item: (1) Subnet Mask\n\tOption End: 255\n\tOption: (12) Host Name\n\tOption: (60) Vendor class identifier\n\tOption: (55) Parameter Request List\n\tOption: (255) End\n\tLength: 10\n\tLength: 22\n\tLength: 8\n\tParameter Request List Item: (3) Router\n\tParameter Request List Item: (6) Domain Name Server\n\tParameter Request List Item: (15) Domain Name\n\tParameter Request List Item: (28) Broadcast Address\n\tParameter Request List Item: (51) IP Address Lease Time\n\tParameter Request List Item: (58) Renewal Time Value\n\tParameter Request List Item: (59) Rebinding Time Value\n"
+    },
+    {
+      "option12_hostname_hint": "BRILL-CT01",
+      "option60_vendor_class": "Philips Brilliance iCT",
+      "option55_ordered_guess": [
+        1,
+        3,
+        6,
+        15,
+        28,
+        51,
+        58,
+        59
+      ],
+      "option55_key_guess": "1,3,6,15,28,51,58,59",
+      "fingerbank_dhcp_hit": "",
+      "vendor_medical_hint": "",
+      "dhcp_message_type": "request",
+      "dhcp_text_excerpt": "Layer DHCP\n:\tMessage type: Boot Request (1)\n\tHardware type: Ethernet (0x01)\n\tHardware address length: 6\n\tHops: 0\n\tTransaction ID: 0x33cc0002\n\tSeconds elapsed: 2\n\tBootp flags: 0x0000 (Unicast)\n\t0... .... .... .... = Broadcast flag: Unicast\n\t.000 0000 0000 0000 = Reserved flags: 0x0000\n\tClient IP address: 0.0.0.0\n\tYour (client) IP address: 0.0.0.0\n\tNext server IP address: 0.0.0.0\n\tRelay agent IP address: 0.0.0.0\n\tClient MAC address: 00:90:20:aa:bb:01\n\tClient hardware address padding: 00000000000000000000\n\tServer host name not given\n\tBoot file name not given\n\tMagic cookie: DHCP\n\tOption: (53) DHCP Message Type (Request)\n\tLength: 1\n\tDHCP: Request (3)\n\tHost Name: BRILL-CT01\n\tVendor class identifier: Philips Brilliance iCT\n\tRequested IP Address: 10.10.10.30\n\tParameter Request List Item: (1) Subnet Mask\n\tOption End: 255\n\tOption: (12) Host Name\n\tOption: (60) Vendor class identifier\n\tOption: (50) Requested IP Address (10.10.10.30)\n\tOption: (55) Parameter Request List\n\tOption: (255) End\n\tLength: 10\n\tLength: 22\n\tLength: 4\n\tLength: 8\n\tParameter Request List Item: (3) Router\n\tParameter Request List Item: (6) Domain Name Server\n\tParameter Request List Item: (15) Domain Name\n\tParameter Request List Item: (28) Broadcast Address\n\tParameter Request List Item: (51) IP Address Lease Time\n\tParameter Request List Item: (58) Renewal Time Value\n\tParameter Request List Item: (59) Rebinding Time Value\n"
+    }
+  ],
+  "dicom_association": [
+    {
+      "dicom_association": {
+        "pdu_type_byte": "",
+        "implementation_class_uid": "",
+        "implementation_version_name": "",
+        "sop_class_hints": [],
+        "philips_image_uid_arc_hits": [],
+        "dicom_modality": "",
+        "dicom_manufacturer": "",
+        "dicom_manufacturer_model": "",
+        "dicom_software_versions": ""
+      }
+    },
+    {
+      "dicom_association": {
+        "pdu_type_byte": "",
+        "implementation_class_uid": "",
+        "implementation_version_name": "",
+        "sop_class_hints": [],
+        "philips_image_uid_arc_hits": [],
+        "dicom_modality": "",
+        "dicom_manufacturer": "",
+        "dicom_manufacturer_model": "",
+        "dicom_software_versions": ""
+      }
+    },
+    {
+      "dicom_association": {
+        "pdu_type_byte": "01",
+        "implementation_class_uid": "",
+        "implementation_version_name": "",
+        "sop_class_hints": [
+          "1.3.46.670589.30.->Philips Eleva platform",
+          "1.3.46.->Philips Healthcare"
+        ],
+        "philips_image_uid_arc_hits": [],
+        "dicom_modality": "",
+        "dicom_manufacturer": "",
+        "dicom_manufacturer_model": "",
+        "dicom_software_versions": ""
+      }
+    },
+    {
+      "dicom_association": {
+        "pdu_type_byte": "",
+        "implementation_class_uid": "",
+        "implementation_version_name": "",
+        "sop_class_hints": [],
+        "philips_image_uid_arc_hits": [],
+        "dicom_modality": "",
+        "dicom_manufacturer": "",
+        "dicom_manufacturer_model": "",
+        "dicom_software_versions": ""
+      }
+    },
+    {
+      "dicom_association": {
+        "pdu_type_byte": "04",
+        "implementation_class_uid": "",
+        "implementation_version_name": "",
+        "sop_class_hints": [],
+        "philips_image_uid_arc_hits": [
+          "1.2.840.113704."
+        ],
+        "dicom_modality": "",
+        "dicom_manufacturer": "",
+        "dicom_manufacturer_model": "",
+        "dicom_software_versions": ""
+      }
+    },
+    {
+      "dicom_association": {
+        "pdu_type_byte": "04",
+        "implementation_class_uid": "",
+        "implementation_version_name": "",
+        "sop_class_hints": [],
+        "philips_image_uid_arc_hits": [],
+        "dicom_modality": "CT",
+        "dicom_manufacturer": "Philips",
+        "dicom_manufacturer_model": "Brilliance iCT",
+        "dicom_software_versions": "4.1.6"
+      }
+    },
+    {
+      "dicom_association": {
+        "pdu_type_byte": "",
+        "implementation_class_uid": "",
+        "implementation_version_name": "",
+        "sop_class_hints": [],
+        "philips_image_uid_arc_hits": [],
+        "dicom_modality": "",
+        "dicom_manufacturer": "",
+        "dicom_manufacturer_model": "",
+        "dicom_software_versions": ""
+      }
+    },
+    {
+      "dicom_association": {
+        "pdu_type_byte": "",
+        "implementation_class_uid": "",
+        "implementation_version_name": "",
+        "sop_class_hints": [],
+        "philips_image_uid_arc_hits": [],
+        "dicom_modality": "",
+        "dicom_manufacturer": "",
+        "dicom_manufacturer_model": "",
+        "dicom_software_versions": ""
+      }
+    },
+    {
+      "dicom_association": {
+        "pdu_type_byte": "",
+        "implementation_class_uid": "",
+        "implementation_version_name": "",
+        "sop_class_hints": [],
+        "philips_image_uid_arc_hits": [],
+        "dicom_modality": "",
+        "dicom_manufacturer": "",
+        "dicom_manufacturer_model": "",
+        "dicom_software_versions": ""
+      }
+    }
+  ],
+  "deterministic_label": "Philips modality / DICOM-speaking device",
+  "deterministic_confidence": "HIGH"
+}
+```
+
+### Broadcast / legacy flat summary
+
+- SSDP hints: `[]` …
+- WS-Discovery UUID: `—`
+- WS-Discovery Types: —
+- mDNS hostname: —
+- mDNS TXT: —
+- DNS-SD services: —
+- LLMNR queries: —
+- LLMNR hostname: —
+
+**Contradictions (deterministic codes):**
+None
+
+**Expert Anomalies:** None
+
+---
+## 10.10.20.20 — Philips modality / DICOM-speaking device
 
 | Field | Value |
 |-------|-------|
@@ -1030,8 +1150,8 @@ None
 | Processing path | `DETERMINISTIC_FINAL` |
 | Triage routing | `DETERMINISTIC_FINAL` |
 | Deterministic consensus | `Philips modality / DICOM-speaking device (HIGH)` |
-| Confidence | **TRIAGE_ONLY** |
-| Device Class | Unclassified (triage only) |
+| Confidence | **HIGH** |
+| Device Class | Philips modality / DICOM-speaking device |
 
 ### Pipeline blocks (deterministic excerpts)
 
@@ -1220,126 +1340,6 @@ None
 - DNS-SD services: —
 - LLMNR queries: CCPLATFORM01
 - LLMNR hostname: CCPLATFORM01
-
-**Contradictions (deterministic codes):**
-None
-
-**Expert Anomalies:** None
-
----
-## 10.10.20.30 — Unclassified (triage only)
-
-| Field | Value |
-|-------|-------|
-| IP | `10.10.20.30` |
-| MAC | `00:50:56:8B:CA:FE` |
-| Host ID | `00:50:56:8b:ca:fe` |
-| OUI Vendor | VMware |
-| Hostname | PACSARCH01 |
-| Vendor (CPE) | `microsoft` |
-| Product (CPE) | `windows_server` |
-| Device class (enum) | `server` |
-| Pipelines fired | `2, 3` |
-| Processing path | `ENQUEUE_FUSION` |
-| Triage routing | `ENQUEUE_FUSION` |
-| Deterministic consensus | `— (—)` |
-| Confidence | **TRIAGE_ONLY** |
-| Device Class | Unclassified (triage only) |
-
-### Pipeline blocks (deterministic excerpts)
-
-- **PIPELINE_1:** *(not triggered)*
-
-- **PIPELINE_2:** deterministic `—` (**LOW**)
-```json
-{
-  "smb2_negotiate": [
-    {
-      "dialects_sample": "",
-      "dialect_revision": "",
-      "signing_enabled": ""
-    },
-    {
-      "dialects_sample": "",
-      "dialect_revision": "",
-      "signing_enabled": ""
-    }
-  ],
-  "deterministic_label": "",
-  "deterministic_confidence": "LOW"
-}
-```
-
-- **PIPELINE_3:** deterministic `—` (**LOW**)
-```json
-{
-  "dhcp": [
-    {
-      "option12_hostname_hint": "PACSARCH01",
-      "option60_vendor_class": "MSFT 5.0",
-      "option55_ordered_guess": [
-        1,
-        3,
-        6,
-        15,
-        31,
-        33,
-        43,
-        44,
-        46,
-        47,
-        119,
-        121,
-        249,
-        252
-      ],
-      "option55_key_guess": "1,3,6,15,31,33,43,44,46,47,119,121,249,252",
-      "fingerbank_dhcp_hit": "",
-      "vendor_medical_hint": "",
-      "dhcp_message_type": "discover",
-      "dhcp_text_excerpt": "Layer DHCP\n:\tMessage type: Boot Request (1)\n\tHardware type: Ethernet (0x01)\n\tHardware address length: 6\n\tHops: 0\n\tTransaction ID: 0x66ff0001\n\tSeconds elapsed: 0\n\tBootp flags: 0x0000 (Unicast)\n\t0... .... .... .... = Broadcast flag: Unicast\n\t.000 0000 0000 0000 = Reserved flags: 0x0000\n\tClient IP address: 0.0.0.0\n\tYour (client) IP address: 0.0.0.0\n\tNext server IP address: 0.0.0.0\n\tRelay agent IP address: 0.0.0.0\n\tClient MAC address: 00:50:56:8b:ca:fe\n\tClient hardware address padding: 00000000000000000000\n\tServer host name not given\n\tBoot file name not given\n\tMagic cookie: DHCP\n\tOption: (53) DHCP Message Type (Discover)\n\tLength: 1\n\tDHCP: Discover (1)\n\tHost Name: PACSARCH01\n\tVendor class identifier: MSFT 5.0\n\tParameter Request List Item: (1) Subnet Mask\n\tOption End: 255\n\tOption: (12) Host Name\n\tOption: (60) Vendor class identifier\n\tOption: (55) Parameter Request List\n\tOption: (255) End\n\tLength: 10\n\tLength: 8\n\tLength: 14\n\tParameter Request List Item: (3) Router\n\tParameter Request List Item: (6) Domain Name Server\n\tParameter Request List Item: (15) Domain Name\n\tParameter Request List Item: (31) Perform Router Discover\n\tParameter Request List Item: (33) Static Route\n\tParameter Request List Item: (43) Vendor-Specific Information\n\tParameter Request List Item: (44) NetBIOS over TCP/IP Name Server\n\tParameter Request List Item: (46) NetBIOS over TCP/IP Node Type\n\tParameter Request List Item: (47) NetBIOS over TCP/IP Scope\n\tParameter Request List Item: (119) Domain Search\n\tParameter Request List Item: (121) Classless Static Route\n\tParameter Request List Item: (249) Private/Classless Static Route (Microsoft)\n\tParameter Request List Item: (252) Private/Proxy autodiscovery\n"
-    },
-    {
-      "option12_hostname_hint": "PACSARCH01",
-      "option60_vendor_class": "MSFT 5.0",
-      "option55_ordered_guess": [
-        1,
-        3,
-        6,
-        15,
-        31,
-        33,
-        43,
-        44,
-        46,
-        47,
-        119,
-        121,
-        249,
-        252
-      ],
-      "option55_key_guess": "1,3,6,15,31,33,43,44,46,47,119,121,249,252",
-      "fingerbank_dhcp_hit": "",
-      "vendor_medical_hint": "",
-      "dhcp_message_type": "request",
-      "dhcp_text_excerpt": "Layer DHCP\n:\tMessage type: Boot Request (1)\n\tHardware type: Ethernet (0x01)\n\tHardware address length: 6\n\tHops: 0\n\tTransaction ID: 0x66ff0002\n\tSeconds elapsed: 2\n\tBootp flags: 0x0000 (Unicast)\n\t0... .... .... .... = Broadcast flag: Unicast\n\t.000 0000 0000 0000 = Reserved flags: 0x0000\n\tClient IP address: 0.0.0.0\n\tYour (client) IP address: 0.0.0.0\n\tNext server IP address: 0.0.0.0\n\tRelay agent IP address: 0.0.0.0\n\tClient MAC address: 00:50:56:8b:ca:fe\n\tClient hardware address padding: 00000000000000000000\n\tServer host name not given\n\tBoot file name not given\n\tMagic cookie: DHCP\n\tOption: (53) DHCP Message Type (Request)\n\tLength: 1\n\tDHCP: Request (3)\n\tHost Name: PACSARCH01\n\tVendor class identifier: MSFT 5.0\n\tRequested IP Address: 10.10.20.30\n\tParameter Request List Item: (1) Subnet Mask\n\tOption End: 255\n\tOption: (12) Host Name\n\tOption: (60) Vendor class identifier\n\tOption: (50) Requested IP Address (10.10.20.30)\n\tOption: (55) Parameter Request List\n\tOption: (255) End\n\tLength: 10\n\tLength: 8\n\tLength: 4\n\tLength: 14\n\tParameter Request List Item: (3) Router\n\tParameter Request List Item: (6) Domain Name Server\n\tParameter Request List Item: (15) Domain Name\n\tParameter Request List Item: (31) Perform Router Discover\n\tParameter Request List Item: (33) Static Route\n\tParameter Request List Item: (43) Vendor-Specific Information\n\tParameter Request List Item: (44) NetBIOS over TCP/IP Name Server\n\tParameter Request List Item: (46) NetBIOS over TCP/IP Node Type\n\tParameter Request List Item: (47) NetBIOS over TCP/IP Scope\n\tParameter Request List Item: (119) Domain Search\n\tParameter Request List Item: (121) Classless Static Route\n\tParameter Request List Item: (249) Private/Classless Static Route (Microsoft)\n\tParameter Request List Item: (252) Private/Proxy autodiscovery\n"
-    }
-  ],
-  "deterministic_label": "",
-  "deterministic_confidence": "LOW"
-}
-```
-
-### Broadcast / legacy flat summary
-
-- SSDP hints: `[]` …
-- WS-Discovery UUID: `—`
-- WS-Discovery Types: —
-- mDNS hostname: —
-- mDNS TXT: —
-- DNS-SD services: —
-- LLMNR queries: PACSARCH01
-- LLMNR hostname: PACSARCH01
 
 **Contradictions (deterministic codes):**
 None

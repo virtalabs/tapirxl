@@ -51,13 +51,14 @@ def _filter_conf(conf: str) -> str:
 def _effective_inventory_conf(row: dict, fused: dict | None, no_llm: bool) -> str:
     if fused and not no_llm:
         return _filter_conf(str(fused.get("confidence", "LOW")))
-    if not no_llm:
-        routing = row.get("triage", {}).get("routing")
-        if routing == "DETERMINISTIC_FINAL":
-            cons = row.get("triage", {}).get("deterministic_consensus") or {}
-            return _filter_conf(str(cons.get("confidence", "HIGH")))
-        if routing == "STAMP_LOW":
-            return "LOW"
+
+    routing = (row.get("triage") or {}).get("routing")
+    if routing == "DETERMINISTIC_FINAL":
+        cons = (row.get("triage") or {}).get("deterministic_consensus") or {}
+        return _filter_conf(str(cons.get("confidence", "HIGH")))
+    if routing == "STAMP_LOW":
+        return "LOW"
+
     if row.get("signal_count") == 1 and not row.get("floor_triggers"):
         return "LOW"
     return "TRIAGE_ONLY"

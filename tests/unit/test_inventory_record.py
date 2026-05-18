@@ -192,3 +192,55 @@ class TestVersionDerivation:
         env["mdns_txt_parsed"] = {"firmware": "1.2.3"}
         rec = build_jsonl_record(env, fused=None, no_llm=True)
         assert rec["version"] == "1.2.3"
+
+
+class TestDeterministicConfidencePropagation:
+    """Deterministic routing must carry confidence even with no_llm=True.
+
+    Regression guard for the `not no_llm` gate that previously suppressed
+    DETERMINISTIC_FINAL consensus on the `mdt parse --json` path.
+    """
+
+    def test_effective_inventory_conf_deterministic_final_returns_high(self) -> None:
+        from tapirxl.core.inventory_record import _effective_inventory_conf
+
+        row = {
+            "triage": {
+                "routing": "DETERMINISTIC_FINAL",
+                "deterministic_consensus": {
+                    "label": "Philips IntelliVue MX700",
+                    "confidence": "HIGH",
+                },
+            },
+        }
+        assert _effective_inventory_conf(row, fused=None, no_llm=True) == "HIGH"
+
+    def test_effective_inventory_conf_stamp_low_returns_low(self) -> None:
+        from tapirxl.core.inventory_record import _effective_inventory_conf
+
+        row = {"triage": {"routing": "STAMP_LOW"}}
+        assert _effective_inventory_conf(row, fused=None, no_llm=True) == "LOW"
+
+    def test_classification_for_record_deterministic_final_returns_label_and_high(self) -> None:
+        from tapirxl.agent.inventory import _classification_for_record
+
+        row = {
+            "triage": {
+                "routing": "DETERMINISTIC_FINAL",
+                "deterministic_consensus": {
+                    "label": "Philips IntelliVue MX700",
+                    "confidence": "HIGH",
+                },
+            },
+        }
+        cls, conf = _classification_for_record(row, fused=None, no_llm=True)
+        assert cls == "Philips IntelliVue MX700"
+        assert conf == "HIGH"
+
+    def test_classification_for_record_stamp_low_returns_benign_low(self) -> None:
+        from tapirxl.agent.inventory import _classification_for_record
+
+        row = {"triage": {"routing": "STAMP_LOW"}}
+        cls, conf = _classification_for_record(row, fused=None, no_llm=True)
+        assert cls == "Likely benign / weak-signal endpoint (routing STAMP_LOW)"
+        assert conf == "LOW"

@@ -36,7 +36,7 @@ def _classification_for_record(row: dict, fused: dict | None, no_llm: bool) -> t
         )
     routing = row.get("triage", {}).get("routing") or ""
     cons = row.get("triage", {}).get("deterministic_consensus") or {}
-    if not no_llm and routing == "DETERMINISTIC_FINAL" and cons.get("label"):
+    if routing == "DETERMINISTIC_FINAL" and cons.get("label"):
         return str(cons.get("label")), str(cons.get("confidence", "HIGH"))
     if routing == "STAMP_LOW":
         return "Likely benign / weak-signal endpoint (routing STAMP_LOW)", "LOW"
