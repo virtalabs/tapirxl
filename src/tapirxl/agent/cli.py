@@ -1,8 +1,10 @@
 """Entry point for mdt-agent — consumes HostEnvelope JSONL from stdin."""
+
 from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Callable
 from datetime import date
 from pathlib import Path
 
@@ -44,8 +46,14 @@ def run_agent(
     output: Path | None,
     jsonl_stdout=None,
     cfg=None,
+    retriage_fn: Callable[[dict], None] | None = None,
 ) -> None:
-    """Core agent execution: triage → normalize → fuse → output."""
+    """Core agent execution: triage → normalize → fuse → output.
+
+    `retriage_fn` is supplied by the wiring CLI (the only places allowed to
+    bridge `agent/` and `parser/` per CLAUDE.md N1). When `None`, Layer-4
+    normalization runs without re-routing.
+    """
     print("Layer 3: triage gate...", file=sys.stderr)
     skip_hosts, stamp_low, deterministic_hosts, fusion_queue = _partition_by_routing(register)
     print(
@@ -66,14 +74,24 @@ def run_agent(
 
             print(f"Layer 5: RLM fusion ({len(fusion_queue)} hosts)...", file=sys.stderr)
             fusion_results = run_fusion_rlm(
-                fusion_queue, norm_lm, fuse_lm, compiled_normalize, compiled_json
+                fusion_queue,
+                norm_lm,
+                fuse_lm,
+                compiled_normalize,
+                compiled_json,
+                retriage_fn=retriage_fn,
             )
         else:
             from tapirxl.agent.fusion import run_fusion
 
             print(f"Layer 5: fusion ({len(fusion_queue)} hosts)...", file=sys.stderr)
             fusion_results = run_fusion(
-                fusion_queue, norm_lm, fuse_lm, compiled_json, compiled_normalize
+                fusion_queue,
+                norm_lm,
+                fuse_lm,
+                compiled_json,
+                compiled_normalize,
+                retriage_fn=retriage_fn,
             )
     elif no_llm:
         print("  --no-llm: skipping normalization and fusion", file=sys.stderr)
@@ -181,6 +199,9 @@ def main() -> None:
 
     print(f"  {len(register)} host envelopes (from stdin)", file=sys.stderr)
 
+    # N1 bridge: parser/triage is imported only at the entry-point wiring layer.
+    from tapirxl.parser.triage import retriage_after_normalization
+
     run_agent(
         register,
         no_llm=args.no_llm,
@@ -193,4 +214,5 @@ def main() -> None:
         output=Path(args.output) if args.output else None,
         jsonl_stdout=_jsonl_stdout,
         cfg=cfg,
+        retriage_fn=retriage_after_normalization,
     )

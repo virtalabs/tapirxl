@@ -1,4 +1,5 @@
 """Cross-pipeline contradiction detection, routing, and triage gate."""
+
 from __future__ import annotations
 
 from tapirxl.parser.deterministic import _consensus_from_pipelines, postprocess_pipeline_labels
@@ -43,9 +44,9 @@ def contradiction_scan(env: dict) -> None:
             env["contradictions"].append(CONTRADICTION_MESSAGES["C1"])
             env["triage"]["contradiction_codes"].append("C1")
     mdns_txt_join = "\n".join(env.get("mdns_txt_raw") or [])
-    chromecast = "chromecast" in mdns_txt_join.lower() or "cast" in (
-        env.get("mdns_hostname") or ""
-    ).lower()
+    chromecast = (
+        "chromecast" in mdns_txt_join.lower() or "cast" in (env.get("mdns_hostname") or "").lower()
+    )
     philips_signals = env.get("ws_vendor_prefix") in {"5048", "4745", "5349", "4452", "4243"}
     # C2
     if chromecast and philips_signals:
@@ -81,9 +82,7 @@ def contradiction_scan(env: dict) -> None:
 def route_host(env: dict) -> None:
     consensus_lbl, consensus_conf = _consensus_from_pipelines(env)
     env["triage"]["deterministic_consensus"] = (
-        {"label": consensus_lbl, "confidence": consensus_conf}
-        if consensus_lbl
-        else None
+        {"label": consensus_lbl, "confidence": consensus_conf} if consensus_lbl else None
     )
 
     amb = env.setdefault("lm_envelope", {"ambiguous_fields": []})["ambiguous_fields"]
@@ -120,6 +119,13 @@ def route_host(env: dict) -> None:
 
     env["triage"]["contradiction_codes"] = env["triage"].get("contradiction_codes", [])
 
+    # Routing per ARCHITECTURE.md §6.1 / CLAUDE.md, first-match-wins.
+    #
+    # Note: contradictions are handled as an early-exit to ENQUEUE_FUSION even
+    # though the literal spec only forbids DETERMINISTIC_FINAL via "not contra".
+    # The defensive read keeps contradictory hosts off the deterministic path
+    # and out of STAMP_LOW (where their contradiction would be lost).
+
     if env["signal_count"] == 0 and not env["expert_flags"]:
         env["triage"]["routing"] = "SKIP"
         env["_processing_path"] = "SKIP"
@@ -130,7 +136,12 @@ def route_host(env: dict) -> None:
         env["_processing_path"] = "ENQUEUE_FUSION"
         return
 
-    if consensus_conf == "HIGH" and consensus_lbl:
+    if env["signal_count"] == 1 and not env["floor_triggers"]:
+        env["triage"]["routing"] = "STAMP_LOW"
+        env["_processing_path"] = "STAMP_LOW"
+        return
+
+    if consensus_conf == "HIGH" and consensus_lbl and not amb:
         env["triage"]["routing"] = "DETERMINISTIC_FINAL"
         env["_processing_path"] = "DETERMINISTIC_FINAL"
         env["_deterministic_preset"] = {
@@ -146,11 +157,6 @@ def route_host(env: dict) -> None:
             else "ENQUEUE_NORMALIZE"
         )
         env["_processing_path"] = env["triage"]["routing"]
-        return
-
-    if env["signal_count"] == 1 and not env["floor_triggers"]:
-        env["triage"]["routing"] = "STAMP_LOW"
-        env["_processing_path"] = "STAMP_LOW"
         return
 
     if consensus_lbl and consensus_conf != "HIGH":

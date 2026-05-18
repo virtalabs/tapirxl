@@ -1,7 +1,7 @@
 # Asset Inventory — Broadcast Protocol Signal Fusion (PoC v2.0 envelope)
 
 **Capture file:** `synthetic_philips_demo`
-**Analysis date:** `2026-05-15`
+**Analysis date:** `2026-05-18`
 **Analyst:** VirtaLabs (automated — tapirxl)
 **Classification:** CONFIDENTIAL — HIPAA Sensitive
 **Mode:** triage-only (--no-llm) | output confidence filter `L` (min rank `1`)
@@ -14,11 +14,11 @@
 |----------|-------|
 | Total unique MAC hosts analyzed | 8 |
 | Skipped hosts (routing=SKIP) | 0 |
-| Routed STAMP_LOW (single weak signal) | 1 |
+| Routed STAMP_LOW (single weak signal) | 2 |
 | DETERMINISTIC_FINAL (consensus sans fusion) | 2 |
-| Submitted to LM fusion / normalization path | 5 |
-| Rows visible — LOW stamped hosts | 1 |
-| Rows visible — TRIAGE_ONLY (fusion pending) | 7 |
+| Submitted to LM fusion / normalization path | 4 |
+| Rows visible — LOW stamped hosts | 2 |
+| Rows visible — TRIAGE_ONLY (fusion pending) | 6 |
 
 ---
 
@@ -690,7 +690,7 @@ None
 > Single signal: single broadcast signal (type unknown). Insufficient for multi-signal classification without further capture.
 
 ---
-## 10.10.20.7 — Unclassified (triage only)
+## 10.10.20.7 — Likely benign / weak-signal endpoint (routing STAMP_LOW)
 
 | Field | Value |
 |-------|-------|
@@ -703,11 +703,11 @@ None
 | Product (CPE) | `—` |
 | Device class (enum) | `—` |
 | Pipelines fired | `3` |
-| Processing path | `ENQUEUE_FUSION` |
-| Triage routing | `ENQUEUE_FUSION` |
+| Processing path | `STAMP_LOW` |
+| Triage routing | `STAMP_LOW` |
 | Deterministic consensus | `— (—)` |
-| Confidence | **TRIAGE_ONLY** |
-| Device Class | Unclassified (triage only) |
+| Confidence | **LOW** |
+| Device Class | Likely benign / weak-signal endpoint (routing STAMP_LOW) |
 
 ### Pipeline blocks (deterministic excerpts)
 
@@ -1010,6 +1010,8 @@ None
 None
 
 **Expert Anomalies:** None
+
+> Single signal: single broadcast signal (type unknown). Insufficient for multi-signal classification without further capture.
 
 ---
 ## 10.10.20.20 — Unclassified (triage only)

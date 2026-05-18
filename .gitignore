@@ -28,3 +28,7 @@ agents/
 
 # macOS
 .DS_Store
+
+# context
+.claude/
+.cursor/

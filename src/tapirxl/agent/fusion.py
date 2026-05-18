@@ -1,8 +1,10 @@
 """Layer 5 — LM-based signal fusion."""
+
 from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
 
 from tapirxl.agent.normalize import normalize_if_needed
@@ -25,9 +27,7 @@ def _fuse_host(row: dict, contradict_cot, fuse_module) -> dict:
     try:
         c = contradict_cot(signal_register=sig_json)
         contradiction_flag = str(c.contradiction_flag).strip().lower() == "true"
-        contradictions = [
-            s.strip() for s in str(c.contradictions).split("|") if s.strip()
-        ]
+        contradictions = [s.strip() for s in str(c.contradictions).split("|") if s.strip()]
     except Exception as e:
         print(f"\n  [warn] ContradictSignals failed for {row['ip']}: {e}", file=sys.stderr)
         contradiction_flag = False
@@ -48,9 +48,7 @@ def _fuse_host(row: dict, contradict_cot, fuse_module) -> dict:
         if contradiction_flag and confidence == "HIGH":
             confidence = "MEDIUM"
         reasoning_trace = str(f.reasoning_trace).strip()
-        open_questions = [
-            s.strip() for s in str(f.open_questions).split("|") if s.strip()
-        ]
+        open_questions = [s.strip() for s in str(f.open_questions).split("|") if s.strip()]
     except Exception as e:
         print(f"\n  [warn] FuseSignals failed for {row['ip']}: {e}", file=sys.stderr)
         device_class = "Unknown (fusion error)"
@@ -78,13 +76,14 @@ def run_fusion(
     fuse_lm,
     compiled_json: Path,
     compiled_normalize: Path,
+    retriage_fn: Callable[[dict], None] | None = None,
 ) -> list[dict]:
     import dspy
 
     from tapirxl.agent.modules.fuse_module import FuseModule
     from tapirxl.agent.signatures.fuse import ContradictSignals
 
-    normalize_if_needed(fusion_queue, norm_lm, compiled_normalize)
+    normalize_if_needed(fusion_queue, norm_lm, compiled_normalize, retriage_fn=retriage_fn)
 
     spill: list[dict] = []
     pending: list[dict] = []
@@ -192,12 +191,13 @@ def run_fusion_rlm(
     fuse_lm,
     compiled_normalize: Path,
     compiled_json: Path,
+    retriage_fn: Callable[[dict], None] | None = None,
 ) -> list[dict]:
     import dspy
 
     from tapirxl.agent.modules.fuse_module import FuseModuleRLM
 
-    normalize_if_needed(fusion_queue, norm_lm, compiled_normalize)
+    normalize_if_needed(fusion_queue, norm_lm, compiled_normalize, retriage_fn=retriage_fn)
 
     spill: list[dict] = []
     pending: list[dict] = []

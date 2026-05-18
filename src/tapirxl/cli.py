@@ -101,6 +101,9 @@ def agent(
 
     pcap_stem = Path(pcap).stem if pcap else "stdin"
 
+    # N1 bridge: parser/triage is imported only at the entry-point wiring layer.
+    from tapirxl.parser.triage import retriage_after_normalization
+
     run_agent(
         register,
         no_llm=no_llm,
@@ -113,6 +116,7 @@ def agent(
         output=Path(output) if output else None,
         jsonl_stdout=_jsonl_stdout,
         cfg=cfg,
+        retriage_fn=retriage_after_normalization,
     )
 
 

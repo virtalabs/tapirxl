@@ -1,16 +1,22 @@
 """Layer 4 — conditional normalization of ambiguous fields."""
+
 from __future__ import annotations
 
 import json
 import sys
+from collections.abc import Callable
 from pathlib import Path
+
+from tapirxl.core.ws_tables import (
+    KNOWN_WS_TYPES_PREFIXES,
+    PHILIPS_MDNS_TXT_KEYWORDS,
+    PHILIPS_WS_TYPES_CANONICAL,
+)
 
 
 def _fields_needing_normalization(
     row: dict, skip: set[str] | None = None
 ) -> list[tuple[str, str, str]]:
-    from tapirxl.parser.tables import KNOWN_WS_TYPES_PREFIXES
-
     skip = skip if skip is not None else set()
     items: list[tuple[str, str, str]] = []
     for t in row.get("ws_types", []):
@@ -28,11 +34,6 @@ def _fields_needing_normalization(
 
 def apply_philips_deterministic_normalization(row: dict) -> set[str]:
     """Philips-scoped deterministic normalization. Returns raw values resolved (skip LLM)."""
-    from tapirxl.parser.tables import (
-        PHILIPS_MDNS_TXT_KEYWORDS,
-        PHILIPS_WS_TYPES_CANONICAL,
-    )
-
     resolved: set[str] = set()
     for t in row.get("ws_types", []):
         if not t:
@@ -60,8 +61,19 @@ def _lm_serialize_shard(row: dict, keys: tuple[str, ...]) -> str:
 
 
 def normalize_if_needed(
-    fusion_queue: list[dict], norm_lm, compiled_normalize: Path
+    fusion_queue: list[dict],
+    norm_lm,
+    compiled_normalize: Path,
+    retriage_fn: Callable[[dict], None] | None = None,
 ) -> None:
+    """Normalize ambiguous fields in-place; optionally re-route each row.
+
+    `retriage_fn` is injected by the entry-point CLI (see N1 — `agent/`
+    must not import `parser/`). When `None`, hosts retain whatever
+    `_processing_path` they had on entry; this is the documented behavior
+    for the standalone `mdt-agent` stdin path that consumes already-routed
+    envelopes from upstream.
+    """
     import dspy
 
     from tapirxl.agent.modules.norm_module import NormModule
@@ -80,16 +92,12 @@ def normalize_if_needed(
             file=sys.stderr,
         )
 
-    from tapirxl.parser.triage import retriage_after_normalization
-
     keys_ctx = ("host_id", "ip", "mac", "oui_vendor", "triage", "pipeline_1")
     for row in fusion_queue:
         resolved = apply_philips_deterministic_normalization(row)
         ambiguous = list(row.get("lm_envelope", {}).get("ambiguous_fields") or [])
         if not ambiguous:
-            for field_path, raw_value, proto in _fields_needing_normalization(
-                row, skip=resolved
-            ):
+            for field_path, raw_value, proto in _fields_needing_normalization(row, skip=resolved):
                 ambiguous.append(
                     {
                         "raw_value": raw_value,
@@ -134,4 +142,5 @@ def normalize_if_needed(
 
         row.setdefault("lm_envelope", {})["ambiguous_fields"] = []
         row.pop("_routing", None)
-        retriage_after_normalization(row)
+        if retriage_fn is not None:
+            retriage_fn(row)

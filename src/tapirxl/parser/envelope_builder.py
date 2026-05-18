@@ -1,10 +1,12 @@
 """Merge raw extraction records into per-MAC HostEnvelope dicts."""
+
 from __future__ import annotations
 
 from tapirxl.core.mac import normalize_mac
 from tapirxl.core.oui import oui_lookup
 from tapirxl.parser.tables import (
     CLINICAL_SERVICE_STRINGS,
+    DHCP_VENDOR_CLASS_MEDICAL,
     KNOWN_MEDICAL_UUID_PREFIXES,
     PHILIPS_INTELLIVUE_SERIES,
 )
@@ -180,9 +182,7 @@ def merge_record_into_envelope(env: dict, rec: dict) -> None:
         dom = (rf.get("ntlmssp_auth_domain") or "").strip()
         usr = (rf.get("ntlmssp_auth_username") or "").strip()
         tgt = (
-            rf.get("ntlmssp_target_nb_computer_name")
-            or rf.get("ntlmssp_target_name")
-            or ""
+            rf.get("ntlmssp_target_nb_computer_name") or rf.get("ntlmssp_target_name") or ""
         ).strip()
         if ws and not env.get("ntlmssp_workstation"):
             env["ntlmssp_workstation"] = ws
@@ -251,9 +251,7 @@ def finalize_envelope_from_records(env: dict) -> dict:
         env["ws_series_family"] = PHILIPS_INTELLIVUE_SERIES.get(env["ws_series_code"])
 
     has_ws = bool(env["ws_uuid"])
-    has_mdns = bool(
-        env["mdns_hostname"] or env["mdns_txt_raw"] or env["mdns_txt_parsed"]
-    )
+    has_mdns = bool(env["mdns_hostname"] or env["mdns_txt_raw"] or env["mdns_txt_parsed"])
     has_dns_sd = bool(env["dns_sd_services"])
     has_llmnr = bool(env["llmnr_queries"] or env["llmnr_hostname"])
 
@@ -279,22 +277,55 @@ def finalize_envelope_from_records(env: dict) -> dict:
     env["signal_count"] = sum(bool(b) for b in buckets)
 
     env["floor_triggers"] = []
+    # Spec floor triggers (CLAUDE.md §6.2).
     if env.get("ws_vendor_prefix") in KNOWN_MEDICAL_UUID_PREFIXES:
         env["floor_triggers"].append("MEDICAL_UUID_PREFIX")
     if any(cs in svc for svc in env["dns_sd_services"] for cs in CLINICAL_SERVICE_STRINGS):
         env["floor_triggers"].append("CLINICAL_SERVICE")
     if env["expert_flags"]:
         env["floor_triggers"].append("EXPERT_ANOMALY")
-    if env.get("pipeline_3"):
-        env["floor_triggers"].append("CLINICAL_APP_PROTO")
+
+    p3 = env.get("pipeline_3") or {}
+    p3_dicom = p3.get("dicom_association") or []
+    if any((da.get("dicom_association") or {}).get("sop_class_hints") for da in p3_dicom):
+        env["floor_triggers"].append("DICOM_VENDOR_ARC")
+    if any(
+        (da.get("dicom_association") or {}).get("philips_image_uid_arc_hits") for da in p3_dicom
+    ):
+        env["floor_triggers"].append("DICOM_PHILIPS_IMAGE_UID")
+
+    p3_dhcp = p3.get("dhcp") or []
+    if any((dh.get("vendor_medical_hint") or "").strip() for dh in p3_dhcp):
+        env["floor_triggers"].append("DHCP_MEDICAL_VENDOR_CLASS")
+
+    # The HL7 extractor only fires on \x0b-framed MLLP, so the presence of any
+    # hl7_segments entry is equivalent to hl7.mllp_detected == True.
+    if p3.get("hl7_segments"):
+        env["floor_triggers"].append("HL7_CLINICAL_INTERFACE")
+
+    # Symmetric with DHCP_MEDICAL_VENDOR_CLASS: scan raw sysDescr against the
+    # medical-vendor substring list rather than relying on the deterministic
+    # label containing a particular word.
+    p3_snmp = p3.get("snmp_sysdescr") or []
+    if any(
+        any(
+            sub.lower() in (sn.get("sys_descr") or "").lower()
+            for sub, _lbl in DHCP_VENDOR_CLASS_MEDICAL
+        )
+        for sn in p3_snmp
+    ):
+        env["floor_triggers"].append("SNMP_MEDICAL_SYSDESCR")
+
+    # Documented extensions outside the spec — preserved because they drive
+    # deterministic labeling for media devices. Removing the now-redundant
+    # CLINICAL_APP_PROTO trigger (any pipeline_3 record) since DICOM/DHCP/HL7
+    # /SNMP triggers above cover its semantics with finer granularity.
     for obs in env.get("ssdp_observations", []) or []:
         for h in obs.get("hints") or []:
             if "Sonos" in h:
                 env["floor_triggers"].append("SSDP_MEDIA_CLOUD")
                 break
-        if "- Sonos networked" not in "".join(env.get("floor_triggers", [])) and obs.get(
-            "hints"
-        ):
+        if "- Sonos networked" not in "".join(env.get("floor_triggers", [])) and obs.get("hints"):
             env["floor_triggers"].append("SSDP_METADATA")
             break
 
