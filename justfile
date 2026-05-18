@@ -26,13 +26,13 @@ typecheck:
 fixture:
     uv run mdt fixtures
 
-# Parse PCAP → envelope JSONL (available from M3)
+# Parse PCAP → InventoryRecord JSONL (schema: schemas/inventory_record.schema.json)
 parse PCAP:
-    uv run mdt parse {{PCAP}}
-
-# Parse PCAP → JSONL stdout
-parse-json PCAP:
     uv run mdt parse {{PCAP}} --json
+
+# Parse PCAP → full HostEnvelope JSONL (raw deterministic shape, all pipeline blocks)
+parse-verbose PCAP:
+    uv run mdt parse {{PCAP}}
 
 # Full pipeline → reports/
 agent PCAP:

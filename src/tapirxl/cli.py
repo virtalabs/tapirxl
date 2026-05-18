@@ -123,11 +123,26 @@ def agent(
 @app.command("parse")
 def parse(
     pcap: Annotated[str, typer.Argument(help="Path to input PCAP file")],
+    emit_inventory: Annotated[
+        bool,
+        typer.Option(
+            "--json",
+            help=(
+                "Emit InventoryRecord JSONL (schema: "
+                "schemas/inventory_record.schema.json). Default is HostEnvelope JSONL."
+            ),
+        ),
+    ] = False,
 ) -> None:
-    """Parse PCAP → one HostEnvelope JSON per line on stdout."""
+    """Parse PCAP → JSONL on stdout.
+
+    Default emits one HostEnvelope per line (raw deterministic shape).
+    With ``--json`` emits one InventoryRecord per line matching
+    ``schemas/inventory_record.schema.json``.
+    """
     from tapirxl.parser.cli import main as _parse_main
 
-    _parse_main(pcap)
+    _parse_main(pcap, emit_inventory=emit_inventory)
 
 
 @app.command("fixtures")
