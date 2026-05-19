@@ -397,9 +397,39 @@ Two source modes share the same transform and sink:
 | Overflow behavior        | `drop_newest` — preserves backlog; newer state for a MAC will arrive again |
 | Delivery semantics       | At-least-once; BlueFlow upsert is keyed by MAC and idempotent by content |
 
-`Idempotency-Key` header is **deferred** (FR §13) pending a written
-answer from the BlueFlow team on upsert idempotency. Adding it later is
-one VRL line.
+**Idempotency under retry — current posture (resolved with BlueFlow):**
+
+BlueFlow's `/api/assets/upsert/` does not honor an `Idempotency-Key`
+header today, and TapirXL does not send one. The only observable side
+effect of a Vector retry against an already-committed PUT is a duplicate
+`historicalasset` row (django-simple-history). That noise will be
+addressed server-side by a no-op short-circuit before
+`asset.save()` / `update_change_reason`: when the incoming payload
+diffs to nothing against the current row (with set-equality on
+`open_ports_tcp` and server-derived fields like `updated_at` excluded),
+the handler returns `200` without writing. This collapses the entire
+class of "duplicate observation" writes — Vector retries, parser
+re-runs of the same PCAP, multiple shipper instances, manual reposts —
+into a single rule, without any client-side coordination.
+
+**Idempotency-Key — pre-decided design for when it's needed:**
+
+If a future Asset write grows a side effect that escapes the
+request boundary (outbound webhook, async drift-event publish,
+external-system notification), client-side request-level idempotency
+becomes load-bearing and BlueFlow will start honoring the header. The
+key is pre-agreed:
+
+- **Key value:** `sha256(encode_json(payload))` — content-addressable,
+  stateless, survives Vector restarts.
+- **Transport:** Vector's `%` metadata namespace, so the hash stays
+  out of the request body (the wire shape this PR commits to).
+  In VRL: `%idempotency_key = sha256(encode_json(.))` after `. = out`.
+  In the sink: `Idempotency-Key = "{{ %idempotency_key }}"` under
+  `[sinks.blueflow.request.headers]`.
+
+This costs two lines on each side when the trigger event lands; the
+goldens in this PR are unaffected because the header is metadata-only.
 
 ### 12.4 Image contract (consumed by the demo PR)
 
@@ -451,7 +481,7 @@ BlueFlow services + a network on top via Compose v2.20+ `include:`.
 | Live capture (`-i eth0`, NET_CAP_ADMIN, SPAN-traffic + tcpreplay) | Future parser PR |
 | `tapirxl parse --output FILE`       | Small parser follow-up PR         |
 | Bounded concurrency (`max_in_flight > 1`) | FR §14 follow-up              |
-| `Idempotency-Key`                   | Pending BlueFlow team answer      |
+| `Idempotency-Key` header            | BlueFlow ticket (server-side no-op short-circuit ships first; header design pre-agreed for the eventual side-effect-escaping case — see §12.3) |
 
 ---
 
