@@ -2,19 +2,19 @@
 
 Two complementary mechanisms in one file:
 
-**(a) Project-dependency guard** (G11 per ``tapirxl_domain_split.md`` §11).
-Parses ``pyproject.toml``'s ``[project] dependencies`` and asserts the
-forbidden set is absent. The forbidden set tracks every dependency that
-historically belonged to the agent/LM tier and must never reappear on
-``main`` (D8 — parser is LM-free).
+**(a) Project-dependency guard.** Parses ``pyproject.toml``'s
+``[project] dependencies`` and asserts the forbidden set is absent. The
+forbidden set tracks every dependency that historically belonged to the
+agent/LM tier and must never reappear on ``main`` (invariant D8 —
+``parser/`` is LM-free; see ``CLAUDE.md`` "Hard Rules" N1/N2).
 
-**(b) LM-free package import guard** (v0.2 FR §11 item 5).
-AST-walks every ``*.py`` file under ``src/tapirxl/{parser,core,schemas,
-fixtures}`` and asserts no ``import``/``from`` statement names a dependency
-reserved for the uploader tier (``httpx``, ``tenacity``, ``keyring``).
-Trivially passes today (none of those packages are installed); becomes the
-active guard the moment the ``feat/uploader`` work adds them to
-``[project] dependencies``.
+**(b) LM-free package import guard.** AST-walks every ``*.py`` file under
+``src/tapirxl/{parser,core,schemas,fixtures}`` and asserts no
+``import``/``from`` statement names a dependency reserved for the
+uploader tier (``httpx``, ``tenacity``, ``keyring``). Trivially passes
+today (none of those packages are installed); becomes the active guard
+the moment the ``feat/uploader`` work adds them to ``[project]
+dependencies``.
 
 Both lists are intentionally defined as constants at the top of this module
 so the test doubles as living documentation of the LM-free + read-only
@@ -126,5 +126,6 @@ def test_uploader_modules_not_imported_in_lm_free_packages(package: str) -> None
 
     assert not offenders, (
         f"Uploader-only modules imported inside tapirxl/{package}/ "
-        "(v0.2 FR §11 item 5):\n" + "\n".join(offenders)
+        "(violates the LM-free + read-only invariants — see CLAUDE.md "
+        '"Hard Rules" N1/N4):\n' + "\n".join(offenders)
     )
