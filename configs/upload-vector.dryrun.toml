@@ -16,6 +16,11 @@
 # the file= reference rather than overlaying. Same operator-facing
 # behaviour, cleaner semantics.
 
+# Vector requires `data_dir` to exist at validate time even when there's
+# no disk buffer or file source. Match upload-vector.toml's env-var
+# indirection so native dev recipes can point it at a tempdir.
+data_dir = "${VECTOR_DATA_DIR:-/var/lib/vector/data}"
+
 [sources.inventory_stdin]
 type = "stdin"
 decoding.codec = "json"

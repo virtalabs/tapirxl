@@ -10,6 +10,7 @@ Skipped when the ``docker`` binary is unavailable.
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -33,9 +34,10 @@ def test_compose_fragment_is_valid() -> None:
         env={
             # `BLUEFLOW_TOKEN:?` requires a value; provide a placeholder so
             # interpolation succeeds. `config -q` does not open sockets,
-            # so the value never reaches a network.
+            # so the value never reaches a network. Inherit PATH so
+            # Homebrew/apt installs of `docker` resolve.
+            **os.environ,
             "BLUEFLOW_TOKEN": "test-token-not-used",
-            "PATH": "/usr/local/bin:/usr/bin:/bin",
         },
     )
     assert proc.returncode == 0, (

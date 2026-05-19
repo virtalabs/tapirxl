@@ -13,6 +13,7 @@ canonical pin and ``test_vector_version_pinned.py`` for the enforcement).
 
 from __future__ import annotations
 
+import os
 import shutil
 import subprocess
 from pathlib import Path
@@ -41,8 +42,10 @@ def _diff_message(actual: bytes, expected: bytes) -> str:
 @pytest.mark.skipif(not GOLDEN_INVENTORY.exists(), reason=f"Missing: {GOLDEN_INVENTORY}")
 @pytest.mark.skipif(not GOLDEN_ASSETS.exists(), reason=f"Missing: {GOLDEN_ASSETS}")
 @pytest.mark.skipif(not DRYRUN_CONFIG.exists(), reason=f"Missing: {DRYRUN_CONFIG}")
-def test_vector_pipeline_byte_identical() -> None:
+def test_vector_pipeline_byte_identical(tmp_path: Path) -> None:
     """Vector translation produces byte-identical AssetUpsertPayload JSONL."""
+    data_dir = tmp_path / "vector-data"
+    data_dir.mkdir()
     proc = subprocess.run(
         ["vector", "--quiet", "--config-toml", str(DRYRUN_CONFIG)],
         input=GOLDEN_INVENTORY.read_bytes(),
@@ -50,6 +53,7 @@ def test_vector_pipeline_byte_identical() -> None:
         check=True,
         cwd=REPO_ROOT,
         timeout=30,
+        env={**os.environ, "VECTOR_DATA_DIR": str(data_dir)},
     )
     actual = proc.stdout
     expected = GOLDEN_ASSETS.read_bytes()
