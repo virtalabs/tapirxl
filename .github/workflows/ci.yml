@@ -1,0 +1,80 @@
+# TapirXL CI — unit + Vector config + Phase 1 integration smoke (A3).
+#
+# integration-smoke exercises tapirxl:demo-dev against a stub BlueFlow on
+# ubuntu-latest (--network=host). Push an annotated tag only after this
+# workflow is green on that commit; see release.yml.
+
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+      - "feat/**"
+      - "chore/**"
+  pull_request:
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv sync --dev
+
+      - run: uv run ruff check src/ tests/
+
+      - run: uv run ruff format --check src/ tests/
+
+      - name: Unit tests (exclude integration)
+        run: uv run pytest -m "not integration" --tb=short
+
+  vector:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Vector 0.55.0
+        run: |
+          curl -1sLf 'https://repositories.timber.io/public/vector/cfg/setup/bash.deb.sh' | sudo bash
+          sudo apt-get install -y vector=0.55.0-1
+          vector --version
+
+      - uses: extractions/setup-just@v2
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv sync --dev
+
+      - run: just vector-validate
+
+      - run: just vector-test
+
+  integration-smoke:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: extractions/setup-just@v2
+
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+
+      - run: uv sync --dev
+
+      - name: Build tapirxl:demo-dev
+        run: just docker-build-demo
+
+      - name: Phase 1 smoke + demo image regression
+        run: |
+          uv run pytest \
+            tests/integration/test_phase1_smoke.py \
+            tests/regression/test_demo_image.py \
+            -v --tb=short

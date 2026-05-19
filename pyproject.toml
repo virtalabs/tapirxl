@@ -36,3 +36,6 @@ select = ["E", "F", "W", "I", "B", "UP", "RUF"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "integration: tests that require docker and --network=host (Linux only)",
+]

@@ -602,6 +602,22 @@ Operator workflows: [`packaging/docker/README.md`](../packaging/docker/README.md
 | Schema parity      | `tests/compat/test_inventory_schema_parity.py`              | Pydantic ↔ JSON Schema alignment              |
 | Forbidden deps     | `tests/compat/test_deps.py`                                 | No LM stack or Python HTTP uploader on `main` |
 | Vector version pin | `tests/regression/test_vector_version_pinned.py`            | Shipper image tag matches CI expectation      |
+| Phase 1 smoke      | `tests/integration/test_phase1_smoke.py`                    | Demo image → Vector → stub BlueFlow upsert    |
+| Demo image golden  | `tests/regression/test_demo_image.py`                       | Unified image dry-run byte identity           |
+
+### 12.7 CI and Phase 1 smoke gate
+
+GitHub Actions ([`.github/workflows/ci.yml`](../.github/workflows/ci.yml))
+runs three jobs on every PR: **unit** (ruff + `pytest -m "not integration"`),
+**vector** (pinned Vector 0.55.0 + `just vector-validate` / `vector-test`), and
+**integration-smoke** (build `tapirxl:demo-dev`, run demo-image golden + Phase 1
+stub upsert). Annotated tags of the form `{artifact}-v{semver}` (e.g.
+`demo-v0.3.0`) trigger
+[`.github/workflows/release.yml`](../.github/workflows/release.yml) to build
+the artifact's Dockerfile and push `virtalabsinc/tapirxl:{artifact}-{semver}`
+plus `:{artifact}-latest` to Docker Hub. See
+[`packaging/docker/README.md`](../packaging/docker/README.md) "Releasing a demo
+tag".
 
 ---
 

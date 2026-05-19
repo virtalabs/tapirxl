@@ -1,0 +1,93 @@
+# Build & push Docker Hub images on artifact-scoped semver tags.
+#
+# Tag convention: {artifact}-v{semver} (e.g. demo-v0.3.0, parser-v1.2.0).
+# The artifact prefix is parsed from the git ref; the Dockerfile dispatch
+# table below maps artifact -> Dockerfile path. Adding a new image is a
+# one-line `case` addition plus the Dockerfile itself — no workflow fork.
+#
+# Image tag scheme (per artifact):
+#   virtalabsinc/tapirxl:{artifact}-{semver}
+#   virtalabsinc/tapirxl:{artifact}-latest
+#
+# Convention: only push a tag after CI (ci.yml) is green on that commit.
+# This workflow does not declare `needs: ci` — tag pushes do not participate
+# in the same workflow_run graph as branch CI in a straightforward way.
+#
+# Required repository secrets:
+#   DOCKERHUB_USERNAME
+#   DOCKERHUB_TOKEN
+#
+# Example:
+#   git tag -a demo-v0.3.0 -m "demo image 0.3.0"
+#   git push origin demo-v0.3.0
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "*-v*.*.*"
+
+jobs:
+  push-image:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Parse artifact and version from tag
+        id: parse
+        env:
+          REF: ${{ github.ref_name }}
+        run: |
+          # REF e.g. "demo-v0.3.0" -> artifact=demo, version=0.3.0
+          artifact="${REF%-v*}"
+          version="${REF##*-v}"
+          if [ -z "$artifact" ] || [ -z "$version" ] || [ "$artifact" = "$REF" ]; then
+            echo "Tag '$REF' does not match {artifact}-v{semver}; aborting." >&2
+            exit 1
+          fi
+          echo "artifact=$artifact" >> "$GITHUB_OUTPUT"
+          echo "version=$version"  >> "$GITHUB_OUTPUT"
+
+      - name: Resolve Dockerfile for artifact
+        id: dockerfile
+        env:
+          ARTIFACT: ${{ steps.parse.outputs.artifact }}
+        run: |
+          case "$ARTIFACT" in
+            demo)    echo "path=packaging/docker/demo/Dockerfile"    >> "$GITHUB_OUTPUT" ;;
+            parser)  echo "path=packaging/docker/parser/Dockerfile"  >> "$GITHUB_OUTPUT" ;;
+            shipper) echo "path=packaging/docker/vector/Dockerfile"  >> "$GITHUB_OUTPUT" ;;
+            *)
+              echo "Unknown artifact '$ARTIFACT' — add a case in release.yml" >&2
+              exit 1
+              ;;
+          esac
+
+      - uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v3
+
+      - id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: virtalabsinc/tapirxl
+          flavor: |
+            latest=false
+            prefix=${{ steps.parse.outputs.artifact }}-,onlatest=true
+          tags: |
+            type=raw,value=${{ steps.parse.outputs.version }}
+            type=raw,value=latest
+
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ steps.dockerfile.outputs.path }}
+          push: true
+          tags:   ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to:   type=gha,mode=max
