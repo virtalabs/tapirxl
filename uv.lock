@@ -525,7 +525,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "pydantic", specifier = ">=2" },
-    { name = "pyshark" },
+    { name = "pyshark", specifier = "==0.6" },
     { name = "typer" },
 ]
 

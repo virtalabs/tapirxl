@@ -272,6 +272,15 @@ class EthernetBlock(BaseModel):
 # ── Top-level HostEnvelope ─────────────────────────────────────────────────────
 
 
+SCHEMA_VERSION: int = 2
+"""Current `HostEnvelope` wire schema version.
+
+Bumped monotonically on additive field changes; removals/renames require a
+major package version bump. Consumers of older archives use
+``tapirxl.schemas.migrations.promote_v1_to_v2`` to upgrade pre-v2 dicts.
+"""
+
+
 class HostEnvelope(BaseModel):
     """Canonical per-MAC record. Primary key is host_id (MAC). IP is observational.
     Pipeline blocks are None (absent) when the pipeline did not fire — never empty dicts.
@@ -283,6 +292,7 @@ class HostEnvelope(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    schema_version: int = SCHEMA_VERSION
     host_id: str  # lowercase colon-delimited MAC
     oui_vendor: str = "UNKNOWN"
     ip_observations: list[str] = Field(default_factory=list)

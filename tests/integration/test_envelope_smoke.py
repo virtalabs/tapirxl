@@ -42,6 +42,7 @@ def test_parse_emits_typed_host_envelopes() -> None:
 
     for env in envelopes:
         assert env.host_id
+        assert env.schema_version == 2
         assert env.triage is not None
         if env.triage.routing is not None:
             assert env.triage.routing in {
