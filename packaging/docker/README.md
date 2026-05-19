@@ -215,3 +215,36 @@ rather than evicting backlog. See `configs/upload-vector.toml`.
 5. If the byte-identical pipeline test fails, the new Vector's JSON
    serializer changed ordering — regenerate goldens with `just
    golden-regenerate` and review the diff carefully.
+
+## Releasing a demo tag
+
+CI (`.github/workflows/ci.yml`) runs on every PR and push to `main`. The
+`integration-smoke` job builds `tapirxl:demo-dev`, runs the byte-identical
+demo-image regression, and exercises the full parser → Vector → stub BlueFlow
+upsert path (`tests/integration/test_phase1_smoke.py`) on `ubuntu-latest`.
+
+**Push an annotated tag only after CI is green on that commit.** The release
+workflow (`.github/workflows/release.yml`) is artifact-scoped — the git tag
+itself names the image to build, using `{artifact}-v{semver}`. For the demo
+image, that's `demo-v<semver>`. The workflow parses the prefix, looks up the
+Dockerfile in its dispatch table, and pushes:
+
+- `virtalabsinc/tapirxl:demo-<semver>` (e.g. `demo-0.3.0` from tag `demo-v0.3.0`)
+- `virtalabsinc/tapirxl:demo-latest`
+
+Additional artifacts (e.g. `parser-v*.*.*`, `shipper-v*.*.*`) reuse the same
+workflow with one extra `case` line — see `release.yml` for the current map.
+
+Required GitHub repository secrets: `DOCKERHUB_USERNAME`, `DOCKERHUB_TOKEN`.
+
+```bash
+# After merge + green CI on main:
+git tag -a demo-v0.3.0 -m "TapirXL demo image 0.3.0"
+git push origin demo-v0.3.0
+# Watch the Release workflow in GitHub Actions.
+```
+
+Before the first demo-tag push, confirm the 2026-05-18 live BlueFlow smoke
+still passes manually (8 × 201, 8 × 200, field assertions on
+`GET /api/assets/`) — the stub gate guards packaging regressions but does
+not replace a periodic check against real BlueFlow.
