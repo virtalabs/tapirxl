@@ -27,6 +27,16 @@ set -euo pipefail
 : "${BLUEFLOW_URL:?BLUEFLOW_URL is required}"
 : "${BLUEFLOW_TOKEN:?BLUEFLOW_TOKEN is required}"
 
+# configs/upload-vector.toml declares a [sources.inventory_file] source that
+# references ${TAPIRXL_INVENTORY_FILE}. Vector 0.55 does not honour the
+# `:-default` POSIX fallback for `include` arrays the same way it does for
+# `data_dir`, so we materialise an explicit default here. In pcap mode the
+# file source has nothing to tail — events flow stdin -> Vector — but
+# Vector still validates the source at startup. Keep this path identical to
+# configs/upload.env.example so compose deployments stay aligned.
+: "${TAPIRXL_INVENTORY_FILE:=/var/lib/tapirxl/inventory.jsonl}"
+export TAPIRXL_INVENTORY_FILE
+
 case "$TAPIRXL_MODE" in
   pcap)
     : "${TAPIRXL_PCAP_PATH:?TAPIRXL_PCAP_PATH is required in pcap mode}"
