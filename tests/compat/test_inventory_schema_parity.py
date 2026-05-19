@@ -1,6 +1,6 @@
 """Compat test: Pydantic `InventoryRecord` ↔ hand-authored JSON Schema.
 
-Per G8, the hand-authored
+The hand-authored
 [`schemas/inventory_record.schema.json`](../../schemas/inventory_record.schema.json)
 and the Pydantic model
 [`src/tapirxl/schemas/inventory.py`](../../src/tapirxl/schemas/inventory.py)
@@ -10,10 +10,10 @@ must agree on:
 - the `required` set,
 - the enum members of `vendor`, `product`, `device_class`, and `confidence`.
 
-Pydantic is the canonical source for client-side validation (v0.2 FR §4.2);
-the JSON Schema is the wire spec for non-Python consumers. This test is the
-guard against silent drift between the two — one assertion per concern so
-the failure message names the drifted field.
+Pydantic is the canonical source for client-side validation; the JSON
+Schema is the wire spec for non-Python consumers. This test is the guard
+against silent drift between the two — one assertion per concern so the
+failure message names the drifted field.
 
 The two representations encode "nullable enum" differently — JSON Schema
 puts ``null`` in the enum list (``{"enum": [null, "HIGH", ...]}``); Pydantic
