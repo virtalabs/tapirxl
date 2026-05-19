@@ -1,0 +1,84 @@
+# TapirXL BlueFlow upload pipeline (Vector).
+#
+# Reads InventoryRecord JSONL from either stdin (local dev pipe) or a
+# rolling file at ${TAPIRXL_INVENTORY_FILE} (compose / demo), runs the
+# VRL transform in upload-vector.vrl, and PUTs the translated payloads to
+# BlueFlow's /api/assets/upsert/ endpoint with a 600 s wall-clock retry
+# budget and a 1 GiB on-disk durability buffer.
+#
+# Environment:
+#   BLUEFLOW_URL              required (e.g. http://blueflow-api:8000)
+#   BLUEFLOW_TOKEN            required (DRF token; sent as "Authorization: Token <hex>")
+#   TAPIRXL_INVENTORY_FILE    optional (default: /var/lib/tapirxl/inventory.jsonl)
+#   VECTOR_DATA_DIR           optional (default: /var/lib/vector/data)
+#
+# Dev variant: configs/upload-vector.dryrun.toml swaps the http sink for
+# a console sink. Both configs share configs/upload-vector.vrl.
+#
+# Version pin: this config is validated against Vector 0.55.0
+# (see packaging/docker/vector/Dockerfile FROM tag and
+# tests/regression/test_vector_version_pinned.py). Newer minor versions
+# are likely fine but unguarded.
+
+data_dir = "${VECTOR_DATA_DIR:-/var/lib/vector/data}"
+
+[sources.inventory_stdin]
+type = "stdin"
+decoding.codec = "json"
+
+[sources.inventory_file]
+type    = "file"
+include = ["${TAPIRXL_INVENTORY_FILE:-/var/lib/tapirxl/inventory.jsonl}"]
+read_from         = "beginning"
+ignore_older_secs = 86400
+# Note: the `file` source emits raw lines as `.message`; the to_asset
+# VRL transform parses JSON when `.message` is present, so both stdin
+# (pre-decoded) and file (raw) inputs converge on the same shape.
+
+[transforms.to_asset]
+type   = "remap"
+inputs = ["inventory_stdin", "inventory_file"]
+# Path is repo-relative by default (works for `cd <repo>; vector ...`);
+# the parser/shipper Dockerfile sets UPLOAD_VECTOR_VRL_PATH to the
+# absolute baked-in path inside the image.
+file   = "${UPLOAD_VECTOR_VRL_PATH:-configs/upload-vector.vrl}"
+# Drop on transform error rather than route to a dead-letter; surfaces
+# schema drift loudly via Vector internal_logs.
+drop_on_error  = true
+drop_on_abort  = true
+reroute_dropped = false
+
+[sinks.blueflow]
+type   = "http"
+inputs = ["to_asset"]
+uri    = "${BLUEFLOW_URL}/api/assets/upsert/"
+method = "put"
+
+# One PUT per record; BlueFlow upsert is keyed by mac_address. Single-
+# flight per FR §13 — bounded concurrency deferred.
+[sinks.blueflow.batch]
+max_events = 1
+
+[sinks.blueflow.encoding]
+codec = "json"
+[sinks.blueflow.framing]
+method = "newline_delimited"
+
+# DRF token auth. Vector's `auth.strategy = "bearer"` emits "Bearer <tok>";
+# BlueFlow expects "Token <tok>". Set the header explicitly.
+[sinks.blueflow.request]
+concurrency             = 1
+timeout_secs            = 30
+retry_max_duration_secs = 600
+retry_jitter_mode       = "Full"
+[sinks.blueflow.request.headers]
+Authorization = "Token ${BLUEFLOW_TOKEN}"
+Accept        = "application/json"
+
+# Durable disk buffer. drop_newest preserves backlog under sustained
+# backpressure (newer state for a MAC is already on the wire to BlueFlow
+# or buffered ahead of it). Flip to "block" to stall the source instead.
+[sinks.blueflow.buffer]
+type      = "disk"
+max_size  = 1073741824
+when_full = "drop_newest"

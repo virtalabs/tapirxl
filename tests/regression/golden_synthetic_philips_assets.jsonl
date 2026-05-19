@@ -1,0 +1,8 @@
+{"category":"workstation","external_keys":{"tapirxl_confidence":"HIGH"},"hostname":"CCPLATFORM01","ip_address":"10.10.20.20","mac_address":"00:09:5C:BB:CC:02","manufacturer":"Microsoft","model":"Windows 10","open_ports_tcp":[5355]}
+{"category":"patient_monitor","external_keys":{"tapirxl_confidence":"LOW"},"hostname":"MX700-bed12","ip_address":"10.10.10.21","mac_address":"00:09:FB:BD:75:6D","manufacturer":"Philips","model":"IntelliVue MX700","open_ports_tcp":[3702]}
+{"category":"firewall","external_keys":{"tapirxl_confidence":"LOW"},"ip_address":"10.10.20.1","mac_address":"00:1B:17:00:01:11","manufacturer":"Palo Alto Networks","model":"PAN-OS","open_ports_tcp":[]}
+{"category":"server","external_keys":{"tapirxl_confidence":"LOW"},"hostname":"PACSARCH01","ip_address":"10.10.20.30","mac_address":"00:50:56:8B:CA:FE","manufacturer":"Microsoft","model":"Windows Server","open_ports_tcp":[5355]}
+{"external_keys":{"tapirxl_confidence":"LOW"},"ip_address":"10.10.20.7","mac_address":"00:50:56:8B:DC:01","manufacturer":"VMware","open_ports_tcp":[]}
+{"external_keys":{"tapirxl_confidence":"HIGH"},"hostname":"BRILL-CT01","ip_address":"10.10.10.30","mac_address":"00:90:20:AA:BB:01","manufacturer":"Philips","model":"Brilliance iCT","open_ports_tcp":[]}
+{"category":"workstation","external_keys":{"tapirxl_confidence":"LOW"},"hostname":"ACMEWS02","ip_address":"10.10.10.41","mac_address":"60:A5:E2:AE:32:1A","manufacturer":"Microsoft","model":"Windows 10","open_ports_tcp":[5355]}
+{"category":"workstation","external_keys":{"tapirxl_confidence":"LOW"},"hostname":"ACMECT01","ip_address":"10.10.10.40","mac_address":"E8:D8:D1:AA:BB:02","manufacturer":"Microsoft","model":"Windows 7","open_ports_tcp":[5355]}

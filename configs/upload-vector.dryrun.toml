@@ -1,0 +1,39 @@
+# TapirXL BlueFlow upload pipeline — dry-run / dev variant.
+#
+# Self-contained. Reads InventoryRecord JSONL from stdin only, runs the
+# same VRL translation as configs/upload-vector.toml, and writes the
+# translated AssetUpsertPayload JSON to stdout (one record per line).
+# No sockets opened, no disk buffer, no auth.
+#
+# Used by:
+#   just upload-dry-run PCAP
+#   just docker-dry-run  PCAP
+#   tests/regression/test_vector_pipeline.py
+#
+# Departure from the literal plan ("two --config-toml flags merge"):
+# Vector's deep-merge across configs is not safe for changing a sink's
+# `type`, so this dryrun config is *standalone* and shares the VRL via
+# the file= reference rather than overlaying. Same operator-facing
+# behaviour, cleaner semantics.
+
+[sources.inventory_stdin]
+type = "stdin"
+decoding.codec = "json"
+
+[transforms.to_asset]
+type   = "remap"
+inputs = ["inventory_stdin"]
+file   = "${UPLOAD_VECTOR_VRL_PATH:-configs/upload-vector.vrl}"
+drop_on_error  = true
+drop_on_abort  = true
+reroute_dropped = false
+
+[sinks.dryrun_stdout]
+type   = "console"
+inputs = ["to_asset"]
+target = "stdout"
+
+[sinks.dryrun_stdout.encoding]
+codec = "json"
+[sinks.dryrun_stdout.framing]
+method = "newline_delimited"

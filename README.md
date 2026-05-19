@@ -50,6 +50,27 @@ just fixture          # writes pcap/synthetic_philips_demo.pcap
 just parse pcap/synthetic_philips_demo.pcap | jq .
 ```
 
+### Ship records to BlueFlow
+
+A Vector pipeline at [`configs/upload-vector.toml`](configs/upload-vector.toml)
+translates `InventoryRecord` JSONL to BlueFlow `Asset` upsert payloads
+and PUTs them to `${BLUEFLOW_URL}/api/assets/upsert/`. Disk-buffered,
+single-flight, at-least-once.
+
+```shell
+brew install vectordotdev/brew/vector
+
+# Local dev: pipe the parser through the dry-run config to see translated payloads
+just upload-dry-run pcap/synthetic_philips_demo.pcap | jq .
+
+# Containerized: same flow inside the two demo images
+just docker-build
+just docker-dry-run pcap/synthetic_philips_demo.pcap | jq .
+```
+
+See [`packaging/docker/README.md`](packaging/docker/README.md) for the
+demo compose-fragment integration and image contract.
+
 ---
 
 ## How it works
