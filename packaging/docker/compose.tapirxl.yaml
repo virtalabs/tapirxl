@@ -13,8 +13,8 @@
 #
 # What this fragment ships:
 #   tapirxl-parser   One-shot: docker compose run --rm tapirxl-parser \
-#                                sh -c 'tapirxl parse /pcap/<f.pcap> --json
-#                                       >> /var/lib/tapirxl/inventory.jsonl'
+#                                parse /pcap/<f.pcap> --json \
+#                                --output /var/lib/tapirxl/inventory.jsonl
 #   tapirxl-shipper  Long-running: Vector tails the inventory file and
 #                                  PUTs translated AssetUpsertPayload
 #                                  records to ${BLUEFLOW_URL}.
@@ -36,10 +36,12 @@ services:
     volumes:
       - tapirxl-inventory:/var/lib/tapirxl
       - ../../pcap:/pcap:ro
-    # Parser is a one-shot. Invoke via `docker compose run --rm
-    # tapirxl-parser ...`; `docker compose up` should NOT include
-    # this service. Demo authors can gate it via a custom `profiles:`
-    # entry in their parent compose if they want.
+    # Parser is a one-shot. Invoke via:
+    #   docker compose run --rm tapirxl-parser \
+    #     parse /pcap/<f.pcap> --json --output /var/lib/tapirxl/inventory.jsonl
+    # `docker compose up` should NOT include this service. Demo authors
+    # can gate it via a custom `profiles:` entry in their parent compose
+    # if they want.
 
   tapirxl-shipper:
     build:

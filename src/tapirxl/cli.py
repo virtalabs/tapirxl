@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Annotated
 
 import typer
@@ -26,16 +27,31 @@ def parse(
             ),
         ),
     ] = False,
+    output: Annotated[
+        Path | None,
+        typer.Option(
+            "--output",
+            "-o",
+            help=(
+                "Write JSONL to PATH (overwrites existing) instead of stdout. "
+                "Stdout emits nothing when set; stderr behavior is unchanged."
+            ),
+        ),
+    ] = None,
 ) -> None:
-    """Parse PCAP → JSONL on stdout.
+    """Parse PCAP → JSONL on stdout (or to ``--output PATH``).
 
     Default emits one HostEnvelope per line (raw deterministic shape).
     With ``--json`` emits one InventoryRecord per line matching
     ``schemas/inventory_record.schema.json``.
+
+    With ``--output PATH`` the same JSONL bytes are written to ``PATH``
+    instead of stdout. Useful for one-shot container runs that previously
+    relied on shell redirection (``sh -c '... >> /var/lib/tapirxl/...'``).
     """
     from tapirxl.parser.cli import main as _parse_main
 
-    _parse_main(pcap, emit_inventory=emit_inventory)
+    _parse_main(pcap, emit_inventory=emit_inventory, output=output)
 
 
 @app.command("fixtures")

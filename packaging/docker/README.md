@@ -100,18 +100,16 @@ Shared volumes:
 # In the demo PR's directory:
 docker compose up -d blueflow-api blueflow-db tapirxl-shipper
 docker compose run --rm tapirxl-parser \
-  sh -c 'tapirxl parse /pcap/synthetic_philips_demo.pcap --json \
-         >> /var/lib/tapirxl/inventory.jsonl'
+  parse /pcap/synthetic_philips_demo.pcap --json \
+        --output /var/lib/tapirxl/inventory.jsonl
 # Within seconds, Vector tails the new lines and PUTs them to BlueFlow.
 docker compose logs --tail 50 tapirxl-shipper
 ```
 
-### Known wart: parser one-shot uses `sh -c` redirection
-
-`tapirxl parse` writes to stdout only; there is no `--output FILE` flag
-today. The one-shot redirects inside the container with `sh -c '...
->> /var/lib/tapirxl/inventory.jsonl'`. A `--output FILE` flag is a small
-follow-up parser PR and would let the demo drop the `sh -c` wrapper.
+`tapirxl parse --output PATH` writes JSONL directly to the shared volume —
+no `sh -c` wrapper, no shell redirection, no extra image layer. Stdout is
+left empty in this mode; stderr still carries the usual pyshark/tshark
+noise. See `tapirxl parse --help`.
 
 ## Image contract (consumed by the demo PR)
 
