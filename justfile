@@ -105,3 +105,36 @@ docker-dry-run PCAP:
             parse "/pcap/$(basename {{PCAP}})" --json \
         | docker run --rm -i -v "$(pwd)/configs:/etc/vector:ro" tapirxl-shipper:dev \
             --quiet --config-toml /etc/vector/upload-vector.dryrun.toml
+
+# Build the unified demo image (`tapirxl:demo-dev`).
+#
+# This is the A2 image — parser + Vector binary + mode-switching entrypoint in
+# one container. Mirrors the future `virtalabsinc/tapirxl:demo-<tag>` push
+# (deferred to A3 / release.yml). See packaging/docker/demo/Dockerfile.
+docker-build-demo:
+    docker build \
+        -f packaging/docker/demo/Dockerfile \
+        -t tapirxl:demo-dev \
+        .
+
+# Containerized dry-run of the unified demo image.
+#
+# Mounts configs/upload-vector.dryrun.toml over the baked-in production
+# config at /etc/vector/upload-vector.toml so Vector writes translated
+# AssetUpsertPayload JSONL to stdout instead of PUTting to BlueFlow. No
+# socket is opened; stub BLUEFLOW_URL / BLUEFLOW_TOKEN satisfy the
+# entrypoint's required-env checks without leaving the container.
+docker-dry-run-demo PCAP:
+    #!/usr/bin/env sh
+    set -e
+    PCAP_ABS=$(cd "$(dirname {{PCAP}})" && pwd)/$(basename {{PCAP}})
+    PCAP_DIR=$(dirname "$PCAP_ABS")
+    PCAP_FILE=$(basename "$PCAP_ABS")
+    docker run --rm \
+        -v "$(pwd)/configs/upload-vector.dryrun.toml:/etc/vector/upload-vector.toml:ro" \
+        -v "$PCAP_DIR:/pcap:ro" \
+        -e TAPIRXL_MODE=pcap \
+        -e TAPIRXL_PCAP_PATH="/pcap/$PCAP_FILE" \
+        -e BLUEFLOW_URL="${BLUEFLOW_URL:-http://localhost:0}" \
+        -e BLUEFLOW_TOKEN="${BLUEFLOW_TOKEN:-dryrun-placeholder}" \
+        tapirxl:demo-dev
