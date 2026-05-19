@@ -40,8 +40,13 @@ jobs:
 
       - name: Install Vector 0.55.0
         run: |
-          curl -1sLf 'https://repositories.timber.io/public/vector/cfg/setup/bash.deb.sh' | sudo bash
-          sudo apt-get install -y vector=0.55.0-1
+          # Install Vector directly from the GitHub release .deb. Avoids the
+          # Timber.io apt setup script (currently broken on ubuntu-latest:
+          # `E: Unable to locate package vector`) and pins to an immutable
+          # release artifact rather than a mutable apt index.
+          curl -fsSL -o /tmp/vector.deb \
+            https://github.com/vectordotdev/vector/releases/download/v0.55.0/vector_0.55.0-1_amd64.deb
+          sudo apt-get install -y /tmp/vector.deb
           vector --version
 
       - uses: extractions/setup-just@v2
@@ -72,7 +77,7 @@ jobs:
       - name: Build tapirxl:demo-dev
         run: just docker-build-demo
 
-      - name: Phase 1 smoke + demo image regression
+      - name: Smoke test + demo image regression
         run: |
           uv run pytest \
             tests/integration/test_phase1_smoke.py \
