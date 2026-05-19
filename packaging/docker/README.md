@@ -16,8 +16,11 @@ packaging/docker/
 │                               demo compose that adds BlueFlow services.
 ├── parser/Dockerfile           python:3.14-slim-bookworm + tshark + uv-managed deps.
 │                               Entrypoint: `tapirxl`. One-shot semantics.
-└── vector/Dockerfile           timberio/vector:0.55.0-debian + the
-                                pinned upload config. Long-running.
+├── vector/Dockerfile           timberio/vector:0.55.0-debian + the
+│                               pinned upload config. Long-running.
+└── demo/                       Unified demo image (parser + Vector binary +
+    ├── Dockerfile              mode-switching entrypoint). The consolidation
+    └── entrypoint.sh           target for `virtalabsinc/tapirxl:demo-<tag>`.
 ```
 
 ## Dev workflow (preferred)
@@ -117,8 +120,64 @@ noise. See `tapirxl parse --help`.
 | --- | --- | --- | --- | --- |
 | `tapirxl-parser:dev` | `tapirxl` (typer; subcommands: `parse`, `fixtures`) | `/pcap` (RO bind), `/var/lib/tapirxl` (RW) | `tapirxl` uid 10001 | ~350 MB |
 | `tapirxl-shipper:dev` | `/usr/bin/vector` (default args at CMD) | `/var/lib/tapirxl`, `/var/lib/vector/data` | `vector-runtime` uid 10002 | ~120 MB |
+| `tapirxl:demo-dev` (A2) | `tini -- tapirxl-demo-entrypoint` (mode-switches on `$TAPIRXL_MODE`) | `/pcap` (RO bind), `/var/lib/vector/data` | `tapirxl` uid 10001 | ~430 MB |
 
-Both images are non-root.
+All three images are non-root.
+
+## Unified demo image (A2)
+
+The unified image at `tapirxl:demo-dev` is the consolidation target for
+the demo compose in the separate demo repo. It bakes the parser, Vector
+binary, and the canonical [`configs/upload-vector.toml`](../../configs/upload-vector.toml)
+into one container with a mode-switching entrypoint
+([`demo/entrypoint.sh`](demo/entrypoint.sh)). Compared with the
+two-image Tier-1 layout above, it removes the inter-service shared volume
+in favor of a direct in-container pipe.
+
+### Mode contract
+
+| `$TAPIRXL_MODE` | Behavior |
+| --- | --- |
+| `pcap` (default) | One-shot: `tapirxl parse $TAPIRXL_PCAP_PATH --json` piped to `vector --config-toml /etc/vector/upload-vector.toml`; container exits when the pipeline drains. |
+| `live` | Stubbed; exits 64 with a message pointing at B1 (live-capture PR). Real implementation lands in B1. |
+
+### Required environment
+
+| Variable | Modes | Notes |
+| --- | --- | --- |
+| `BLUEFLOW_URL` | both | Base URL for the BlueFlow HTTP sink. |
+| `BLUEFLOW_TOKEN` | both | DRF token; sent as `Authorization: Token <hex>`. |
+| `TAPIRXL_PCAP_PATH` | `pcap` only | Path to the PCAP file inside the container (default `/pcap/synthetic_philips_demo.pcap`). |
+| `VECTOR_DATA_DIR` | optional | Vector checkpoint + disk buffer location (default `/var/lib/vector/data`). |
+
+### Recipes
+
+```bash
+just docker-build-demo                                        # build tapirxl:demo-dev
+just docker-dry-run-demo pcap/synthetic_philips_demo.pcap     # dry-run: stdout JSONL, no BlueFlow needed
+uv run pytest tests/regression/test_demo_image.py             # byte-identical golden smoke
+```
+
+`docker-dry-run-demo` mounts [`configs/upload-vector.dryrun.toml`](../../configs/upload-vector.dryrun.toml)
+over the baked-in production config so Vector writes translated
+`AssetUpsertPayload` JSONL to stdout instead of PUTting to BlueFlow. No
+socket is opened.
+
+### Relationship to the Tier-1 fragment
+
+The two-image fragment ([compose.tapirxl.yaml](compose.tapirxl.yaml))
+stays as the building block for compose `include:`-style integration and
+remains the canonical reference for the BlueFlow upsert contract. The
+unified image is an addition, not a replacement: it is what the demo repo
+(C5) consumes, where one container per logical service is simpler
+operationally than the parser/shipper split.
+
+### Pushing `virtalabsinc/tapirxl:demo-<tag>`
+
+Pushing the image to Docker Hub is deferred to A3 (Phase 1 CI gate + tag
+release workflow). Local builds tag as `tapirxl:demo-dev`; the Docker
+Hub tag convention is `virtalabsinc/tapirxl:demo-<semver>` (matching
+[`pyproject.toml`](../../pyproject.toml) `version`).
 
 ### Volume-permissions story
 

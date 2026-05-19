@@ -542,23 +542,36 @@ carried in Vector's `%` metadata namespace (`%idempotency_key` in VRL;
 
 ### 12.4 Container images
 
-Packaging lives at [`packaging/docker/`](../packaging/docker/). The compose
-fragment [`packaging/docker/compose.tapirxl.yaml`](../packaging/docker/compose.tapirxl.yaml)
-defines two services:
+Packaging lives at [`packaging/docker/`](../packaging/docker/). Two
+deployment shapes are supported:
+
+**Tier 1** — building blocks (the compose fragment
+[`packaging/docker/compose.tapirxl.yaml`](../packaging/docker/compose.tapirxl.yaml)
+defines two services that share an inventory volume):
 
 | Image                 | Entrypoint        | Declared volumes                           | User                | Role                               |
 | --------------------- | ----------------- | ------------------------------------------ | ------------------- | ---------------------------------- |
 | `tapirxl-parser:dev`  | `tapirxl` (typer) | `/pcap` (RO bind), `/var/lib/tapirxl` (RW) | `tapirxl` uid 10001 | One-shot; PCAP → inventory JSONL   |
 | `tapirxl-shipper:dev` | `/usr/bin/vector` | `/var/lib/tapirxl`, `/var/lib/vector/data` | vector upstream     | Long-running; tails inventory file |
 
-Both run non-root. The parser writes inventory JSONL to a shared volume; the
-shipper tails that file (or accepts stdin in dev). The parser's
-`--output PATH` flag writes JSONL directly to the shared volume — no
-`--entrypoint sh` wrapper, no shell redirection.
+**Demo image** — the unified consolidation target for the demo repo
+([`packaging/docker/demo/Dockerfile`](../packaging/docker/demo/Dockerfile)):
 
-Required shipper env: `BLUEFLOW_URL`, `BLUEFLOW_TOKEN`. Optional:
-`TAPIRXL_INVENTORY_FILE`, `VECTOR_DATA_DIR`. See
-[`configs/upload.env.example`](../configs/upload.env.example).
+| Image                | Entrypoint                                  | Declared volumes                  | User                | Role                                                 |
+| -------------------- | ------------------------------------------- | --------------------------------- | ------------------- | ---------------------------------------------------- |
+| `tapirxl:demo-dev`   | `tini -- tapirxl-demo-entrypoint`           | `/pcap` (RO bind), `/var/lib/vector/data` | `tapirxl` uid 10001 | Mode-switches on `$TAPIRXL_MODE` (`pcap` \| `live`)  |
+
+All images run non-root. In Tier 1 the parser writes inventory JSONL to a
+shared volume via `--output PATH`; the shipper tails that file (or accepts
+stdin in dev). In the demo image, the parser pipes JSONL directly into
+Vector's stdin source — no inter-service volume needed.
+
+Required shipper env (Tier 1): `BLUEFLOW_URL`, `BLUEFLOW_TOKEN`. Optional:
+`TAPIRXL_INVENTORY_FILE`, `VECTOR_DATA_DIR`. The demo image takes the same
+required envs plus `TAPIRXL_MODE` (`pcap` default) and `TAPIRXL_PCAP_PATH`
+(in `pcap` mode). See [`configs/upload.env.example`](../configs/upload.env.example)
+and [`packaging/docker/README.md`](../packaging/docker/README.md) "Unified
+demo image".
 
 ### 12.5 Compose integration pattern
 
