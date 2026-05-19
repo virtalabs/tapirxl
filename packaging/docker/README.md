@@ -128,7 +128,9 @@ All three images are non-root.
 
 The unified image at `tapirxl:demo-dev` is the consolidation target for
 the demo compose in the separate demo repo. It bakes the parser, Vector
-binary, and the canonical [`configs/upload-vector.toml`](../../configs/upload-vector.toml)
+binary, and both Vector configs
+([`upload-vector.toml`](../../configs/upload-vector.toml) and
+[`upload-vector.pcap.toml`](../../configs/upload-vector.pcap.toml))
 into one container with a mode-switching entrypoint
 ([`demo/entrypoint.sh`](demo/entrypoint.sh)). Compared with the
 two-image Tier-1 layout above, it removes the inter-service shared volume
@@ -138,8 +140,21 @@ in favor of a direct in-container pipe.
 
 | `$TAPIRXL_MODE` | Behavior |
 | --- | --- |
-| `pcap` (default) | One-shot: `tapirxl parse $TAPIRXL_PCAP_PATH --json` piped to `vector --config-toml /etc/vector/upload-vector.toml`; container exits when the pipeline drains. |
+| `pcap` (default) | One-shot: `tapirxl parse $TAPIRXL_PCAP_PATH --json` piped to `vector --config-toml /etc/vector/upload-vector.pcap.toml` (stdin-only; clean shutdown on EOF); container exits when the pipeline drains. |
 | `live` | Stubbed; exits 64 with a message pointing at B1 (live-capture PR). Real implementation lands in B1. |
+
+### Three Vector configs (mode-aligned)
+
+| Config | Source | Sink | Used by |
+| --- | --- | --- | --- |
+| [`upload-vector.toml`](../../configs/upload-vector.toml) | `file` (tails `$TAPIRXL_INVENTORY_FILE`) | `http` → BlueFlow | Compose long-running (Tier-1 split above) |
+| [`upload-vector.pcap.toml`](../../configs/upload-vector.pcap.toml) | `stdin` | `http` → BlueFlow | Demo image `pcap` mode (this section) |
+| [`upload-vector.dryrun.toml`](../../configs/upload-vector.dryrun.toml) | `stdin` | `console` (stdout) | Dev recipes / `test_demo_image.py` overlay |
+
+All three share [`upload-vector.vrl`](../../configs/upload-vector.vrl) for
+translation. The pcap variant exists because Vector 0.55's topology won't
+exit while a `file` source is tailing — fine for compose, fatal for a
+one-shot pipe.
 
 ### Required environment
 
@@ -159,9 +174,9 @@ uv run pytest tests/regression/test_demo_image.py             # byte-identical g
 ```
 
 `docker-dry-run-demo` mounts [`configs/upload-vector.dryrun.toml`](../../configs/upload-vector.dryrun.toml)
-over the baked-in production config so Vector writes translated
-`AssetUpsertPayload` JSONL to stdout instead of PUTting to BlueFlow. No
-socket is opened.
+over the baked-in pcap config at `/etc/vector/upload-vector.pcap.toml` so
+Vector writes translated `AssetUpsertPayload` JSONL to stdout instead of
+PUTting to BlueFlow. No socket is opened.
 
 ### Relationship to the Tier-1 fragment
 

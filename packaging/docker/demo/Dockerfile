@@ -8,8 +8,10 @@
 ## Contract (see packaging/docker/README.md "Unified demo image"):
 ##   TAPIRXL_MODE=pcap (default)
 ##     -> tapirxl parse $TAPIRXL_PCAP_PATH --json
-##        | vector --config-toml /etc/vector/upload-vector.toml
+##        | vector --config-toml /etc/vector/upload-vector.pcap.toml
 ##     One-shot; container exits when the parser finishes and Vector drains.
+##     Uses the stdin-only pcap config so the topology shuts down on EOF
+##     instead of waiting on a phantom file source.
 ##   TAPIRXL_MODE=live
 ##     -> Stubbed; exits 64 with a message pointing at B1 (live-capture PR).
 ##
@@ -49,10 +51,15 @@ COPY src/ ./src/
 COPY static/ ./static/
 RUN uv sync --frozen --no-dev
 
-# Bake the canonical Vector config + VRL. Demo compose can layer in a
-# bind-mount override at /etc/vector/upload-vector.toml without rebuilding.
-COPY configs/upload-vector.toml /etc/vector/upload-vector.toml
-COPY configs/upload-vector.vrl  /etc/vector/upload-vector.vrl
+# Bake the canonical Vector configs + shared VRL.
+#   upload-vector.toml       compose long-running (file source)
+#   upload-vector.pcap.toml  demo one-shot (stdin -> EOF -> clean shutdown)
+# Demo compose can layer in a bind-mount override at either path without
+# rebuilding (tests/regression/test_demo_image.py mounts the dryrun config
+# over upload-vector.toml to verify byte equality).
+COPY configs/upload-vector.toml       /etc/vector/upload-vector.toml
+COPY configs/upload-vector.pcap.toml  /etc/vector/upload-vector.pcap.toml
+COPY configs/upload-vector.vrl        /etc/vector/upload-vector.vrl
 ENV UPLOAD_VECTOR_VRL_PATH=/etc/vector/upload-vector.vrl
 
 # Mode-switching entrypoint script.
