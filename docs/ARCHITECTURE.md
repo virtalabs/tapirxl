@@ -1,21 +1,11 @@
 # TapirXL — Architecture
 
-| Field    | Value                                                      |
-| -------- | ---------------------------------------------------------- |
-| Document | Deterministic Passive Medical-Device Identification        |
-| Version  | 4.0 — stable architecture (supersedes v3.0 monolith)       |
-| Date     | 2026-05-18                                                 |
-| Status   | Authoritative for `main`                                   |
-
----
-
-## §0 — Document History
-
-v4.0 is a ground-up rewrite scoped to the `main` branch after the deterministic /
-agent split. The v3.0 unified document described the monolith (deterministic
-parser + DSPy/Ollama LM tiers + Jinja markdown reporter); its agent-tier
-chapters now live on the `experimental/agent` branch alongside the code they
-describe.
+| Field    | Value                                               |
+| -------- | --------------------------------------------------- |
+| Document | Deterministic Passive Medical-Device Identification |
+| Version  | 4.1                                                 |
+| Date     | 2026-05-19                                          |
+| Status   | Authoritative for `main`                            |
 
 ---
 
@@ -47,13 +37,28 @@ parser-as-aggregator is the differentiating asset.
 
 ### 1.1 Scope
 
-| Category   | In scope                                                                 | Out of scope                                       |
-| ---------- | ------------------------------------------------------------------------ | -------------------------------------------------- |
-| Input      | PCAP file path                                                           | Live capture (deferred adapter)                    |
-| Output     | `HostEnvelope` JSONL, `InventoryRecord` JSONL                            | Markdown reports, REST/SSE, asset-store mutations  |
-| Inference  | Rule-based labelers, consensus, floor triggers, contradiction codes      | LM normalization, fusion, ReAct                    |
-| Storage    | None (stdin/stdout pipes)                                                | Persistent asset records, drift events             |
-| Network    | None (parser does not speak the network)                                 | Anything                                           |
+| Category  | In scope                                                                  | Out of scope                                     |
+| --------- | ------------------------------------------------------------------------- | ------------------------------------------------ |
+| Input     | PCAP file path                                                            | Live capture (deferred adapter)                  |
+| Output    | `HostEnvelope` JSONL, `InventoryRecord` JSONL                             | Markdown reports (agent tier), parser-side REST  |
+| Inference | Rule-based labelers, consensus, floor triggers, contradiction codes       | LM normalization, fusion, ReAct (agent tier)     |
+| Storage   | None in the parser (stdin/stdout pipes)                                   | Persistent asset records, drift events           |
+| Network   | Vector shipper → BlueFlow upsert (separate process; parser stays offline) | Active probing, DNS resolution of observed names |
+
+### 1.2 Bounded contexts
+
+Three bounded contexts share one stable wire contract:
+
+| Context            | Location                    | Responsibility                                                             |
+| ------------------ | --------------------------- | -------------------------------------------------------------------------- |
+| **TapirXL Stable** | this repo, `main`           | PCAP → `HostEnvelope` / `InventoryRecord`; Vector translation and delivery |
+| **TapirXL Agent**  | `experimental/agent` branch | LM normalize, fusion, markdown reports — not part of `main`                |
+| **BlueFlow**       | external repo               | Asset store; consumes translated payloads at `/api/assets/upsert/`         |
+
+`HostEnvelope` JSONL is the cross-context wire contract between parser and any
+downstream consumer. `InventoryRecord` JSONL is the public projection
+(`tapirxl parse --json`). Field changes require a coordinated version bump
+(`schema_version` on `HostEnvelope`; semver on the package for `InventoryRecord`).
 
 ---
 
@@ -61,20 +66,20 @@ parser-as-aggregator is the differentiating asset.
 
 The following terms have one and only one meaning across the codebase.
 
-| Term                    | Meaning                                                                                                                                                  |
-| ----------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Host**                | A MAC address observed in the capture. Identity equals MAC (`host_id`); IP is observational, not identifying.                                            |
-| **Signal**              | One protocol-level observation about a host (DICOM A-ASSOC, WS-D Hello, DHCP Discover, etc.).                                                            |
-| **HostEnvelope**        | The aggregate root: every signal observed for one MAC, plus deterministic labels, triage routing, and ambiguity metadata. Wire contract for consumers.   |
-| **Pipeline**            | One of three concurrent extraction families (broadcast / session / DPI). Pipelines are bands of signal types, not threads.                               |
-| **Deterministic label** | A label assigned by per-pipeline rule (no LM), with a `HIGH` / `MEDIUM` / `LOW` confidence.                                                              |
-| **Consensus**           | Cross-pipeline aggregate of deterministic labels with a single confidence value.                                                                         |
-| **Floor trigger**       | A categorical signal that forces a host out of `STAMP_LOW` even at `signal_count == 1` (e.g. `MEDICAL_UUID_PREFIX`, `HL7_CLINICAL_INTERFACE`).           |
-| **Contradiction**       | A coded conflict between two signals (`C1`..`C4`). Routing-significant but never auto-fails a host.                                                      |
-| **Ambiguity**           | A field value not deterministically matchable to a known label. Stored verbatim in `lm_envelope.ambiguous_fields[]` for downstream consumption.          |
-| **Routing**             | The triage decision for a host, drawn from a closed enum (see §6).                                                                                       |
-| **InventoryRecord**     | The public projection of one host's envelope to the wire format defined in `schemas/inventory_record.schema.json`.                                       |
-| **OUI**                 | The 24-bit Layer-2 vendor prefix lookup. A supporting subdomain.                                                                                          |
+| Term                    | Meaning                                                                                                                                                |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **Host**                | A MAC address observed in the capture. Identity equals MAC (`host_id`); IP is observational, not identifying.                                          |
+| **Signal**              | One protocol-level observation about a host (DICOM A-ASSOC, WS-D Hello, DHCP Discover, etc.).                                                          |
+| **HostEnvelope**        | The aggregate root: every signal observed for one MAC, plus deterministic labels, triage routing, and ambiguity metadata. Wire contract for consumers. |
+| **Pipeline**            | One of three concurrent extraction families (broadcast / session / DPI). Pipelines are bands of signal types, not threads.                             |
+| **Deterministic label** | A label assigned by per-pipeline rule (no LM), with a `HIGH` / `MEDIUM` / `LOW` confidence.                                                            |
+| **Consensus**           | Cross-pipeline aggregate of deterministic labels with a single confidence value.                                                                       |
+| **Floor trigger**       | A categorical signal that forces a host out of `STAMP_LOW` even at `signal_count == 1` (e.g. `MEDICAL_UUID_PREFIX`, `HL7_CLINICAL_INTERFACE`).         |
+| **Contradiction**       | A coded conflict between two signals (`C1`..`C4`). Routing-significant but never auto-fails a host.                                                    |
+| **Ambiguity**           | A field value not deterministically matchable to a known label. Stored verbatim in `lm_envelope.ambiguous_fields[]` for downstream consumption.        |
+| **Routing**             | The triage decision for a host, drawn from a closed enum (see §6).                                                                                     |
+| **InventoryRecord**     | The public projection of one host's envelope to the wire format defined in `schemas/inventory_record.schema.json`.                                     |
+| **OUI**                 | The 24-bit Layer-2 vendor prefix lookup. A supporting subdomain.                                                                                       |
 
 ---
 
@@ -84,38 +89,39 @@ Subdomains follow Evans' three categories: **Core** (the differentiating
 asset), **Supporting** (custom work serving the core), **Generic** (commodity
 plumbing).
 
-| #   | Subdomain                  | Classification | Lives in                              | Responsibility                                                            |
-| --- | -------------------------- | -------------- | ------------------------------------- | ------------------------------------------------------------------------- |
-| 3.1 | Signal Extraction          | Supporting     | `src/tapirxl/parser/extractors/`      | Protocol-specific reads → per-packet signal records. PHI redacted at source. |
-| 3.2 | Host Envelope Aggregation  | **Core**       | `src/tapirxl/parser/envelope_builder.py` | Merge signals into per-MAC `HostEnvelope`. Aggregate root invariants.     |
-| 3.3 | Deterministic Labeling     | **Core**       | `src/tapirxl/parser/deterministic.py` | Per-pipeline labelers + cross-pipeline consensus.                         |
-| 3.4 | Triage / Routing           | **Core**       | `src/tapirxl/parser/triage.py`        | Cross-pipeline contradiction scan + routing decision.                     |
-| 3.5 | Inventory Projection       | **Core**       | `src/tapirxl/core/inventory_record.py` + `src/tapirxl/schemas/inventory.py` | `HostEnvelope` → `InventoryRecord`. CPE slugs, device class, open ports.  |
-| 3.6 | Wire Projection            | **Core**       | `src/tapirxl/parser/serialize.py` + `src/tapirxl/schemas/envelope.py` | Flat runtime dict → typed `HostEnvelope`. Single seam.                    |
-| 3.7 | Static Reference Data      | Supporting     | `src/tapirxl/parser/tables.py` + `static/*.json` + `static/ieee_oui.txt` | OUI lookup, DICOM impl-UID arcs, Fingerbank DHCP, HL7 sending apps, SNMP. |
-| 3.8 | Fixture Generation         | Supporting     | `src/tapirxl/fixtures/`               | Synthetic Philips demo PCAP for regression and demos.                     |
-| 3.9 | Ports & Adapters           | Generic        | `src/tapirxl/parser/ports.py` + `src/tapirxl/parser/adapters/` | `PacketSource`, `EnvelopeSink` Protocols; pyshark + stdout adapters.       |
-| 3.10| CLI                        | Generic        | `src/tapirxl/cli.py` + `src/tapirxl/parser/cli.py` | Typer entry points. Thin wrappers, no domain logic.                       |
+| #    | Subdomain                 | Classification | Lives in                                                                    | Responsibility                                                               |
+| ---- | ------------------------- | -------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| 3.1  | Signal Extraction         | Supporting     | `src/tapirxl/parser/extractors/`                                            | Protocol-specific reads → per-packet signal records. PHI redacted at source. |
+| 3.2  | Host Envelope Aggregation | **Core**       | `src/tapirxl/parser/envelope_builder.py`                                    | Merge signals into per-MAC `HostEnvelope`. Aggregate root invariants.        |
+| 3.3  | Deterministic Labeling    | **Core**       | `src/tapirxl/parser/deterministic.py`                                       | Per-pipeline labelers + cross-pipeline consensus.                            |
+| 3.4  | Triage / Routing          | **Core**       | `src/tapirxl/parser/triage.py`                                              | Cross-pipeline contradiction scan + routing decision.                        |
+| 3.5  | Inventory Projection      | **Core**       | `src/tapirxl/core/inventory_record.py` + `src/tapirxl/schemas/inventory.py` | `HostEnvelope` → `InventoryRecord`. CPE slugs, device class, open ports.     |
+| 3.6  | Wire Projection           | **Core**       | `src/tapirxl/parser/serialize.py` + `src/tapirxl/schemas/envelope.py`       | Flat runtime dict → typed `HostEnvelope`. Single seam.                       |
+| 3.7  | Static Reference Data     | Supporting     | `src/tapirxl/parser/tables.py` + `static/*.json` + `static/ieee_oui.txt`    | OUI lookup, DICOM impl-UID arcs, Fingerbank DHCP, HL7 sending apps, SNMP.    |
+| 3.8  | Fixture Generation        | Supporting     | `src/tapirxl/fixtures/`                                                     | Synthetic Philips demo PCAP for regression and demos.                        |
+| 3.9  | Ports & Adapters          | Generic        | `src/tapirxl/parser/ports.py` + `src/tapirxl/parser/adapters/`              | `PacketSource`, `EnvelopeSink` Protocols; pyshark + stdout adapters.         |
+| 3.10 | CLI                       | Generic        | `src/tapirxl/cli.py` + `src/tapirxl/parser/cli.py`                          | Typer entry points. Thin wrappers, no domain logic.                          |
 
 ---
 
 ## §4 — Toolchain
 
-| Tool             | Role                                                                |
-| ---------------- | ------------------------------------------------------------------- |
-| Python 3.14      | Runtime                                                             |
-| uv               | Resolver + venv + lockfile                                          |
-| ruff             | Linter + formatter                                                  |
-| just             | Task runner                                                         |
-| pytest           | Test runner                                                         |
-| mypy             | Type checker (dev)                                                  |
-| pyshark          | PCAP dissection (depends on `tshark` PATH)                          |
-| pydantic v2      | Wire-contract models                                                |
-| typer            | CLI                                                                 |
-| Vector           | Log shipper to BlueFlow (see §12). Binary pin in `packaging/docker/vector/Dockerfile`. |
+| Tool        | Role                                                                                   |
+| ----------- | -------------------------------------------------------------------------------------- |
+| Python 3.14 | Runtime                                                                                |
+| uv          | Resolver + venv + lockfile                                                             |
+| ruff        | Linter + formatter                                                                     |
+| just        | Task runner                                                                            |
+| pytest      | Test runner                                                                            |
+| mypy        | Type checker (dev)                                                                     |
+| pyshark     | PCAP dissection (depends on `tshark` PATH)                                             |
+| pydantic v2 | Wire-contract models                                                                   |
+| typer       | CLI                                                                                    |
+| Vector      | Log shipper to BlueFlow (see §12). Binary pin in `packaging/docker/vector/Dockerfile`. |
 
 `pyproject.toml` is the single source of project metadata. Recipes live in
-[`justfile`](../justfile).
+[`justfile`](../justfile). Vector operator recipes: `vector-validate`, `vector-test`,
+`upload-dry-run`, `docker-build`, `compose-config`, `docker-dry-run`.
 
 ---
 
@@ -149,7 +155,16 @@ src/tapirxl/
 │   ├── envelope.py        # HostEnvelope (typed wire format)
 │   └── inventory.py       # InventoryRecord (public CLI projection)
 ├── fixtures/              # Synthetic PCAP generator
-└── cli.py                 # Typer app — wires subcommands to parser/ + fixtures/
+└── cli.py                 # Typer app — parse + fixtures
+
+configs/                   # Vector shipper (not Python; see §12)
+├── upload-vector.toml
+├── upload-vector.dryrun.toml
+├── upload-vector.vrl
+├── upload-vector.tests.toml
+└── upload.env.example
+
+packaging/docker/          # Parser + shipper images, compose fragment
 ```
 
 `schemas/inventory_record.schema.json` at the repository root is the JSON
@@ -165,11 +180,11 @@ Static reference data (`ieee_oui.txt`, `fingerbank_dhcp_55.json`,
 Each pipeline is a band of protocol signal types, not a thread. All three feed
 the same per-MAC `HostEnvelope`.
 
-| #   | Name                  | Protocols                                                                                              | Latency       |
-| --- | --------------------- | ------------------------------------------------------------------------------------------------------ | ------------- |
-| 1   | Broadcast / multicast | WS-Discovery, mDNS, DNS-SD, LLMNR, SSDP, ARP, Capsule MDIP                                             | < 60 s        |
-| 2   | Session / passive OS  | TCP SYN fingerprint, TLS Hello (SNI), SMB2 Negotiate, NTLMSSP, Kerberos, DNS, SSH                      | first connect |
-| 3   | Event-driven DPI      | DICOM A-ASSOC, DHCP (option 12/55/60 + Fingerbank), HL7 MLLP (PHI-scrubbed), SNMP (sysDescr/sysOID)    | event-bound   |
+| #   | Name                  | Protocols                                                                                           | Latency       |
+| --- | --------------------- | --------------------------------------------------------------------------------------------------- | ------------- |
+| 1   | Broadcast / multicast | WS-Discovery, mDNS, DNS-SD, LLMNR, SSDP, ARP, Capsule MDIP                                          | < 60 s        |
+| 2   | Session / passive OS  | TCP SYN fingerprint, TLS Hello (SNI), SMB2 Negotiate, NTLMSSP, Kerberos, DNS, SSH                   | first connect |
+| 3   | Event-driven DPI      | DICOM A-ASSOC, DHCP (option 12/55/60 + Fingerbank), HL7 MLLP (PHI-scrubbed), SNMP (sysDescr/sysOID) | event-bound   |
 
 Block presence in the envelope **is** the signal; missing blocks are absent
 (`None`), never empty objects.
@@ -177,6 +192,106 @@ Block presence in the envelope **is** the signal; missing blocks are absent
 The single-pass pyshark sweep that drives extraction lives in
 [`parser/pipeline.py`](../src/tapirxl/parser/pipeline.py). Per-protocol
 extraction lives in [`parser/extractors/`](../src/tapirxl/parser/extractors/).
+
+### 6.1 Identification sequence (end-to-end)
+
+The diagram below traces one PCAP through the deterministic identification
+chain that `tapirxl parse` actually runs today. Every step is read-only: no
+sockets are opened, no observed hostnames are resolved, and PHI is redacted at
+the extractor boundary (A3, A4). Each lane corresponds to one module under
+[`src/tapirxl/parser/`](../src/tapirxl/parser/) plus the
+[`core/inventory_record.py`](../src/tapirxl/core/inventory_record.py) projection.
+
+```mermaid
+sequenceDiagram
+    participant PCAP as PCAP file
+    participant Pipe as parser/pipeline.py<br/>single-pass pyshark sweep
+    participant Ext as parser/extractors/*<br/>read-only, PHI-redacted at source
+    participant Env as parser/envelope_builder.py<br/>per-MAC aggregate
+    participant Det as parser/deterministic.py<br/>per-pipeline labelers + consensus
+    participant Tri as parser/triage.py<br/>contradictions + routing
+    participant Out as parser/serialize.py + core/inventory_record.py<br/>stdout JSONL
+
+    Note over PCAP,Pipe: 1. Open the capture (offline&#59; no live sockets)
+    PCAP->>Pipe: pyshark.FileCapture(DISPLAY_FILTER)
+    loop For each packet
+        Pipe->>Ext: dispatch by L4 port / dissector presence
+
+        Note right of Ext: One file per protocol&#59; each returns a flat record<br/>{protocol, src_mac, src_ip, raw_fields, timestamp}
+
+        alt WS-Discovery (UDP/3702)
+            Ext->>Ext: extract UUID from XML/payload&#59;<br/>vendor_prefix = UUID[0:4] hex<br/>(5048 PH, 4745 GE, 5349 SI, 4452 DR, 4243 BC)&#59;<br/>series_code = ascii(UUID[4:8]) → BH / BV / GD …
+            Ext-->>Pipe: WS_DISCOVERY: {ws_uuid, ws_vendor_prefix, ws_series_code, ws_types, ws_scopes}
+        else mDNS / DNS-SD / LLMNR (UDP/5353, 5355)
+            Ext->>Ext: A-record hostnames, TXT key=value,<br/>PTR service names, LLMNR self-claims
+            Ext-->>Pipe: MDNS_A / MDNS_TXT / DNS_SD_PTR / LLMNR records
+        else DICOM (TCP/104, 2104, 2762)
+            Ext->>Ext: slice Eth+IP+TCP payload via dissector header lengths&#59;<br/>read PDU type byte&#59;<br/>User-Info: 0x52 → implementation_class_uid,<br/>0x55 → implementation_version_name&#59;<br/>scan PDU for vendor arcs (1.3.46.*, 1.2.840.113704.*)&#59;<br/>explicit-VR-LE walk: (0008,0060) modality,<br/>(0008,0070) manufacturer, (0008,1090) model,<br/>(0018,1020) sw_versions&#59;<br/>(0010,*) PHI tags redacted at extract
+            Ext-->>Pipe: DICOM record (with dicom_association sub-dict)
+        else HL7 MLLP (TCP, framed by 0x0B / 0x1C 0x0D)
+            Ext->>Ext: require 0x0B head&#59; strip 0x1C 0x0D tail&#59;<br/>parse MSH-3/4/5/9/12&#59;<br/>PID-3/5/7/8 → "&#60;PHI&#62;" before emit
+            Ext-->>Pipe: HL7_MLLP record
+        else DHCP (options 12, 55, 60)
+            Ext->>Ext: option-12 hostname&#59; option-60 VCI&#59;<br/>Fingerbank lookup on option-55 + OUI
+            Ext-->>Pipe: DHCP record
+        else TCP SYN / TLS SNI / SMB2 NTLMSSP / Kerberos / SSH / SNMP / ARP / SSDP / Capsule MDIP
+            Ext-->>Pipe: per-protocol record (see parser/extractors/*.py)
+        end
+    end
+
+    Note over Pipe,Env: 2. Group records by MAC (host_id is the primary key — A1, A8)
+    Pipe->>Env: build_signal_register(records, oui_table)
+    Env->>Env: bucket by normalize_mac(src_mac)&#59;<br/>per host_id, make_empty_envelope() + OUI lookup&#59;<br/>for each record (sorted by timestamp)<br/>merge_record_into_envelope() routes raw_fields into:<br/>pipeline_1 (WS-D, mDNS, DNS-SD, LLMNR, SSDP, ARP, Capsule),<br/>pipeline_2 (TCP SYN, TLS SNI, SMB2, NTLMSSP, Kerberos, DNS, SSH),<br/>pipeline_3 (DICOM, DHCP, HL7, SNMP)
+
+    Env->>Env: finalize_envelope_from_records():<br/>- ws_series_code → ws_series_family<br/>  (PHILIPS_INTELLIVUE_SERIES[BH] = MX700/800, BV = MX400/450, GD = X3/X2)<br/>- signal_count from bucket presence<br/>- floor_triggers: MEDICAL_UUID_PREFIX, CLINICAL_SERVICE, EXPERT_ANOMALY,<br/>  DICOM_VENDOR_ARC, DICOM_PHILIPS_IMAGE_UID, DHCP_MEDICAL_VENDOR_CLASS,<br/>  HL7_CLINICAL_INTERFACE, SNMP_MEDICAL_SYSDESCR, SSDP_MEDIA_CLOUD
+
+    Env-->>Tri: enriched envelope (per host_id)
+
+    Note over Tri,Det: 3. Per-host scan, then per-pipeline labels
+    Tri->>Tri: contradiction_scan() → triage.contradiction_codes:<br/>C1 OUI vs DICOM vendor arc mismatch<br/>C2 mDNS Chromecast spoof of Philips WS-D signal<br/>C3 Philips WS-D + non-Philips DICOM arc<br/>C4 mDNS hostname ≠ LLMNR hostname
+
+    Tri->>Det: postprocess_pipeline_labels()
+    Det->>Det: label_pipeline_1(): WS series_family HIGH,<br/>Capsule MDIP tokens HIGH, SSDP Sonos HIGH, ARP-only LOW
+    Det->>Det: label_pipeline_2(): TCP SYN deterministic label<br/>(TTL / MSS / WScale shape) + last-syn confidence_hint&#59;<br/>TLS SNI ecosystem hints&#59; SSH banner prefix
+    Det->>Det: label_pipeline_3(): Philips DICOM arc → HIGH,<br/>HL7 sending-app hint, DHCP fingerbank / medical-vendor hint,<br/>SNMP sysDescr hint
+    Det-->>Tri: pipeline_n.deterministic_label + .deterministic_confidence
+
+    Note over Tri: 4. Cross-pipeline consensus + 4-value routing (closed enum — A8)
+    Tri->>Tri: _consensus_from_pipelines():<br/>2+ HIGH agree (with _subsumes_label) → HIGH,<br/>1 HIGH + any MEDIUM → MEDIUM-cap,<br/>else best available MEDIUM/LOW
+    Tri->>Tri: lm_envelope.ambiguous_fields[] populated from<br/>unknown WS-Types prefixes and non-key=value mDNS TXT entries<br/>(verbatim — for downstream consumers&#59; main never runs an LM)
+    Tri->>Tri: route_host() first-match-wins:<br/>1. signal_count==0 ∧ no expert_flags → SKIP<br/>2. contradiction_codes non-empty → AMBIGUOUS<br/>3. signal_count==1 ∧ no floor_triggers → STAMP_LOW<br/>4. consensus HIGH ∧ no ambiguous_fields → DETERMINISTIC_FINAL<br/>5. else → AMBIGUOUS
+    Tri-->>Out: routed envelope (per host_id, MAC-sorted)
+
+    Note over Out: 5. Emit on stdout (the data contract — N6, A10, A11)&#59;<br/>progress, pyshark/tshark noise, and summaries go to stderr
+    alt tapirxl parse &#60;pcap&#62; (default)
+        Out->>Out: serialize.to_envelope(flat) → typed HostEnvelope<br/>(pydantic v2&#59; pipeline_n is None when not fired — A2)
+        Out-->>PCAP: HostEnvelope JSONL — one envelope per MAC
+    else tapirxl parse &#60;pcap&#62; --json
+        Out->>Out: build_jsonl_record() — CPE-aligned projection:<br/>hostname: DHCP opt-12 → LLMNR → NTLMSSP → mDNS<br/>vendor: DICOM (manufacturer / impl_uid arc / image_uid arc)<br/>→ WS-D prefix → DHCP VCI → OUI<br/>product: DICOM model / impl_uid arc → DHCP VCI fingerbank<br/>→ WS-D series_code (BH → intellivue_mx700)<br/>version: DICOM (0018,1020) → mDNS TXT firmware / sw_version<br/>device_class: DICOM Modality (CT/MR/US/CR/DX/MG/NM/PT)<br/>→ WS-D series → DHCP role<br/>→ NTLMSSP/SNI/A-ASSOC-AC heuristic (workstation, server, pacs)<br/>open_ports: 3702 / 5353 / 5355 / 5090 / 1900 + DNS-SD service map<br/>confidence: DETERMINISTIC_FINAL → consensus,<br/>STAMP_LOW or single-signal no-floor → LOW, else → LOW
+        Out-->>PCAP: InventoryRecord JSONL — one record per MAC
+    end
+```
+
+What this diagram makes binding:
+
+- **MAC is the join key.** Extractors emit per-packet records keyed by source
+  MAC (with OUI from the static table). Aggregation, labeling, and routing all
+  happen per host_id; IP is observational and may appear multiple times in
+  `ip_observations[]` (A1).
+- **Pipelines are bands, not threads.** A single pyshark sweep dispatches into
+  per-protocol extractors. Pipeline membership is decided at envelope-merge
+  time by which sub-block the record's `protocol` field maps to.
+- **Floor triggers are the bridge between signal_count and confidence.** They
+  let a single high-value signal (medical UUID prefix, DICOM vendor arc,
+  HL7 MLLP, etc.) escape `STAMP_LOW` even when only one pipeline fired.
+- **Contradiction codes never auto-fail a host.** `route_host` early-exits
+  populated contradictions to `AMBIGUOUS` so the conflicting signals are
+  preserved in the envelope for downstream consumers; `STAMP_LOW` would
+  silently lose them.
+- **`InventoryRecord` is a projection, not a label.** `vendor`, `product`,
+  `device_class`, `version`, and `hostname` are derived from the same
+  envelope every consumer can re-derive from. The projection is the only
+  place CPE slugs are introduced; the envelope itself stays raw.
 
 ---
 
@@ -202,6 +317,7 @@ emit.
 
 Top-level fields:
 
+- `schema_version` (currently `2`; migrations in `schemas/migrations/`)
 - `host_id` (MAC, primary key), `oui_vendor`, `ip_observations[]`
 - `first_seen`, `last_seen`
 - `ethernet`
@@ -280,20 +396,22 @@ check but never perform discovery-time redaction.
 
 Binding for every PR.
 
-| #   | Invariant                                                                                                                                                                                                                |
-| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| A1  | **MAC is primary key.** `HostEnvelope.host_id` is a normalized lowercase colon-delimited MAC. IPs are observational and may change across captures for the same host. Never key state on IP.                            |
-| A2  | **Absent ≠ empty.** Pipeline blocks are `None` when not fired. Empty dicts are a bug.                                                                                                                                    |
-| A3  | **PHI redacted at the source.** DICOM `(0010,*)` and HL7 PID-3/5/7/8 are redacted in the extractor before the field touches an envelope.                                                                                |
-| A4  | **Extractors are read-only.** No sockets, no DNS lookups against observed names, no packet emission. Static-file reads only.                                                                                              |
-| A5  | **Bit-identical replay.** Given identical PCAP bytes and identical static tables, JSONL output is byte-identical across commits. Enforced by the golden regression test against the synthetic fixture.                  |
-| A6  | **`core/` is leaf.** `src/tapirxl/core/*` imports nothing from elsewhere in the project except other `core/` modules.                                                                                                    |
-| A7  | **Parser is LM-free.** `src/tapirxl/parser/*` does not import `dspy`, `ollama`, `jinja2`, or any model artifact. Reintroducing such an import is a CI-blocking regression.                                              |
-| A8  | **Routing enum is closed.** `triage.routing` is exactly one of `{SKIP, STAMP_LOW, DETERMINISTIC_FINAL, AMBIGUOUS}`. Adding a value requires a schema-version bump (A9).                                                  |
-| A9  | **Schema versions advance monotonically; fields are additive.** Field additions to `HostEnvelope` or `InventoryRecord` are non-breaking. Removals and renames require a major package version bump.                     |
-| A10 | **`InventoryRecord` is the public CLI contract.** `tapirxl parse <pcap> --json` emits one record per host conforming to `schemas/inventory_record.schema.json`. The flag's semantics do not change.                     |
-| A11 | **`HostEnvelope` is the wire contract.** `tapirxl parse <pcap>` (no `--json`) emits one envelope per host conforming to `src/tapirxl/schemas/envelope.py`.                                                              |
-| A12 | **PHI redaction is upstream, once.** TapirXL redacts at extract time (A3). Downstream consumers re-assert as a defense-in-depth check but never perform discovery-time redaction.                                       |
+| #   | Invariant                                                                                                                                                                                                                                        |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| A1  | **MAC is primary key.** `HostEnvelope.host_id` is a normalized lowercase colon-delimited MAC. IPs are observational and may change across captures for the same host. Never key state on IP.                                                     |
+| A2  | **Absent ≠ empty.** Pipeline blocks are `None` when not fired. Empty dicts are a bug.                                                                                                                                                            |
+| A3  | **PHI redacted at the source.** DICOM `(0010,*)` and HL7 PID-3/5/7/8 are redacted in the extractor before the field touches an envelope.                                                                                                         |
+| A4  | **Extractors are read-only.** No sockets, no DNS lookups against observed names, no packet emission. Static-file reads only.                                                                                                                     |
+| A5  | **Bit-identical replay.** Given identical PCAP bytes and identical static tables, JSONL output is byte-identical across commits. Enforced by the golden regression test against the synthetic fixture.                                           |
+| A6  | **`core/` is leaf.** `src/tapirxl/core/*` imports nothing from elsewhere in the project except other `core/` modules.                                                                                                                            |
+| A7  | **Parser is LM-free.** `src/tapirxl/parser/*` does not import `dspy`, `ollama`, `jinja2`, or any model artifact. Reintroducing such an import is a CI-blocking regression.                                                                       |
+| A8  | **Routing enum is closed.** `triage.routing` is exactly one of `{SKIP, STAMP_LOW, DETERMINISTIC_FINAL, AMBIGUOUS}`. Adding a value requires a schema-version bump (A9).                                                                          |
+| A9  | **Schema versions advance monotonically; fields are additive.** Field additions to `HostEnvelope` or `InventoryRecord` are non-breaking. Removals and renames require a major package version bump.                                              |
+| A10 | **`InventoryRecord` is the public CLI contract.** `tapirxl parse <pcap> --json` emits one record per host conforming to `schemas/inventory_record.schema.json`. The flag's semantics do not change.                                              |
+| A11 | **`HostEnvelope` is the wire contract.** `tapirxl parse <pcap>` (no `--json`) emits one envelope per host conforming to `src/tapirxl/schemas/envelope.py`.                                                                                       |
+| A12 | **PHI redaction is upstream, once.** TapirXL redacts at extract time (A3). Downstream consumers re-assert as a defense-in-depth check but never perform discovery-time redaction.                                                                |
+| A13 | **Upstream delivery is Vector, not Python.** BlueFlow upsert is implemented in `configs/upload-vector.toml` + `upload-vector.vrl`. No `httpx`, `tenacity`, `keyring`, or `uploader/` package on `main`. Enforced by `tests/compat/test_deps.py`. |
+| A14 | **HTTP sink headers are explicit.** The BlueFlow sink sends `Content-Type: application/json` and `Authorization: Token ${BLUEFLOW_TOKEN}`. Vector does not infer `Content-Type` from `encoding.codec`.                                           |
 
 ---
 
@@ -312,12 +430,16 @@ tapirxl fixtures
 
 Justfile recipes mirror this:
 
-| Recipe                      | Command                         | Output                |
-| --------------------------- | ------------------------------- | --------------------- |
-| `just parse PCAP`           | `tapirxl parse PCAP --json`     | InventoryRecord JSONL |
-| `just parse-verbose PCAP`   | `tapirxl parse PCAP`            | HostEnvelope JSONL    |
-| `just fixture`              | `tapirxl fixtures`              | synthetic PCAP        |
-| `just test` / `lint` / `fmt`/ `typecheck` | standard dev recipes |                       |
+| Recipe                                                    | Command                                    | Output                |
+| --------------------------------------------------------- | ------------------------------------------ | --------------------- |
+| `just parse PCAP`                                         | `tapirxl parse PCAP --json`                | InventoryRecord JSONL |
+| `just parse-verbose PCAP`                                 | `tapirxl parse PCAP`                       | HostEnvelope JSONL    |
+| `just fixture`                                            | `tapirxl fixtures`                         | synthetic PCAP        |
+| `just test` / `lint` / `fmt`/ `typecheck`                 | standard dev recipes                       |                       |
+| `just vector-validate`                                    | validate Vector configs                    |                       |
+| `just vector-test`                                        | 8 `[[tests]]` stanzas for VRL translation  |                       |
+| `just upload-dry-run PCAP`                                | parse → Vector dryrun → Asset JSONL stdout |                       |
+| `just docker-build` / `compose-config` / `docker-dry-run` | container packaging                        |                       |
 
 Entry points (declared in `pyproject.toml`):
 
@@ -339,16 +461,16 @@ has no `httpx`, `tenacity`, or `keyring` dependency, and adding any
 
 ### 12.1 Translation contract
 
-| InventoryRecord field | BlueFlow Asset field    | Mapping                                                       |
-| --------------------- | ----------------------- | ------------------------------------------------------------- |
-| `mac_address`         | `mac_address`           | Verbatim                                                      |
-| `ip_address`          | `ip_address`            | Verbatim                                                      |
-| `hostname`            | `hostname`              | Omitted when source is `null`                                 |
-| `vendor` (slug)       | `manufacturer` (display)| 5-entry lookup; unknown slug passes through                   |
-| `product` (slug)      | `model` (display)       | 7-entry lookup; unknown slug passes through                   |
-| `version`             | `app_sw_version`        | Omitted when source is `null`                                 |
-| `device_class`        | `category`              | Verbatim slug passthrough                                     |
-| `open_ports`          | `open_ports_tcp`        | Verbatim (always present, may be `[]`)                        |
+| InventoryRecord field | BlueFlow Asset field               | Mapping                                                 |
+| --------------------- | ---------------------------------- | ------------------------------------------------------- |
+| `mac_address`         | `mac_address`                      | Verbatim                                                |
+| `ip_address`          | `ip_address`                       | Verbatim                                                |
+| `hostname`            | `hostname`                         | Omitted when source is `null`                           |
+| `vendor` (slug)       | `manufacturer` (display)           | 5-entry lookup; unknown slug passes through             |
+| `product` (slug)      | `model` (display)                  | 7-entry lookup; unknown slug passes through             |
+| `version`             | `app_sw_version`                   | Omitted when source is `null`                           |
+| `device_class`        | `category`                         | Verbatim slug passthrough                               |
+| `open_ports`          | `open_ports_tcp`                   | Verbatim (always present, may be `[]`)                  |
 | `confidence`          | `external_keys.tapirxl_confidence` | Whole `external_keys` key omitted when source is `null` |
 
 Implemented in [`configs/upload-vector.vrl`](../configs/upload-vector.vrl).
@@ -386,102 +508,97 @@ Two source modes share the same transform and sink:
 
 ### 12.3 Delivery guarantees
 
-| Property                 | Value                                                              |
-| ------------------------ | ------------------------------------------------------------------ |
-| Concurrency              | `request.concurrency = 1` (single-flight)                          |
-| Batch size               | `batch.max_events = 1` (one PUT per record)                        |
-| Auth                     | `Authorization: Token ${BLUEFLOW_TOKEN}` (DRF, not RFC6750 Bearer) |
-| Retry budget             | 600 s wall-clock per record, exponential w/ full jitter            |
-| Retry-After (429/503)    | Honored                                                            |
-| Durability under failure | 1 GiB on-disk buffer (`buffer.type = "disk"`)                      |
+| Property                 | Value                                                                      |
+| ------------------------ | -------------------------------------------------------------------------- |
+| Concurrency              | `request.concurrency = 1` (single-flight)                                  |
+| Batch size               | `batch.max_events = 1` (one PUT per record)                                |
+| Content-Type             | `application/json` (explicit request header; required by DRF)              |
+| Auth                     | `Authorization: Token ${BLUEFLOW_TOKEN}` (DRF, not RFC6750 Bearer)         |
+| Retry budget             | 600 s wall-clock per record, exponential w/ full jitter                    |
+| Retry-After (429/503)    | Honored                                                                    |
+| Durability under failure | 1 GiB on-disk buffer (`buffer.type = "disk"`)                              |
 | Overflow behavior        | `drop_newest` — preserves backlog; newer state for a MAC will arrive again |
-| Delivery semantics       | At-least-once; BlueFlow upsert is keyed by MAC and idempotent by content |
+| Delivery semantics       | At-least-once; BlueFlow upsert is keyed by MAC                             |
 
-**Idempotency under retry — current posture (resolved with BlueFlow):**
+**Duplicate writes under retry:** TapirXL does not send an `Idempotency-Key`
+header. BlueFlow's upsert is content-keyed by MAC; identical payloads return
+`200` on re-PUT. The observable side effect of an at-least-once retry before
+the asset row stabilizes is a duplicate `historicalasset` row
+(django-simple-history). BlueFlow addresses that class of noise with a
+server-side no-op short-circuit when the incoming payload diffs to nothing
+against the current row (set-equality on `open_ports_tcp`; server-derived
+fields such as `updated_at` excluded).
 
-BlueFlow's `/api/assets/upsert/` does not honor an `Idempotency-Key`
-header today, and TapirXL does not send one. The only observable side
-effect of a Vector retry against an already-committed PUT is a duplicate
-`historicalasset` row (django-simple-history). That noise will be
-addressed server-side by a no-op short-circuit before
-`asset.save()` / `update_change_reason`: when the incoming payload
-diffs to nothing against the current row (with set-equality on
-`open_ports_tcp` and server-derived fields like `updated_at` excluded),
-the handler returns `200` without writing. This collapses the entire
-class of "duplicate observation" writes — Vector retries, parser
-re-runs of the same PCAP, multiple shipper instances, manual reposts —
-into a single rule, without any client-side coordination.
+**Future client idempotency (not implemented):** If Asset writes gain
+request-scoped side effects outside the database transaction, BlueFlow may
+honor `Idempotency-Key`. The agreed key is `sha256(encode_json(payload))`,
+carried in Vector's `%` metadata namespace (`%idempotency_key` in VRL;
+`Idempotency-Key` sink header) so the hash never enters the request body.
 
-**Idempotency-Key — pre-decided design for when it's needed:**
+### 12.4 Container images
 
-If a future Asset write grows a side effect that escapes the
-request boundary (outbound webhook, async drift-event publish,
-external-system notification), client-side request-level idempotency
-becomes load-bearing and BlueFlow will start honoring the header. The
-key is pre-agreed:
+Packaging lives at [`packaging/docker/`](../packaging/docker/). The compose
+fragment [`packaging/docker/compose.tapirxl.yaml`](../packaging/docker/compose.tapirxl.yaml)
+defines two services:
 
-- **Key value:** `sha256(encode_json(payload))` — content-addressable,
-  stateless, survives Vector restarts.
-- **Transport:** Vector's `%` metadata namespace, so the hash stays
-  out of the request body (the wire shape this PR commits to).
-  In VRL: `%idempotency_key = sha256(encode_json(.))` after `. = out`.
-  In the sink: `Idempotency-Key = "{{ %idempotency_key }}"` under
-  `[sinks.blueflow.request.headers]`.
+| Image                 | Entrypoint        | Declared volumes                           | User                | Role                               |
+| --------------------- | ----------------- | ------------------------------------------ | ------------------- | ---------------------------------- |
+| `tapirxl-parser:dev`  | `tapirxl` (typer) | `/pcap` (RO bind), `/var/lib/tapirxl` (RW) | `tapirxl` uid 10001 | One-shot; PCAP → inventory JSONL   |
+| `tapirxl-shipper:dev` | `/usr/bin/vector` | `/var/lib/tapirxl`, `/var/lib/vector/data` | vector upstream     | Long-running; tails inventory file |
 
-This costs two lines on each side when the trigger event lands; the
-goldens in this PR are unaffected because the header is metadata-only.
+Both run non-root. The parser writes inventory JSONL to a shared volume; the
+shipper tails that file (or accepts stdin in dev). One-shot file output today
+uses shell redirection inside the parser container (`--entrypoint sh`); a
+native `tapirxl parse --output FILE` flag would remove that indirection.
 
-### 12.4 Image contract (consumed by the demo PR)
+Required shipper env: `BLUEFLOW_URL`, `BLUEFLOW_TOKEN`. Optional:
+`TAPIRXL_INVENTORY_FILE`, `VECTOR_DATA_DIR`. See
+[`configs/upload.env.example`](../configs/upload.env.example).
 
-Packaging lives at [`packaging/docker/`](../packaging/docker/). Two
-images are produced from the compose fragment
-[`packaging/docker/compose.tapirxl.yaml`](../packaging/docker/compose.tapirxl.yaml):
+### 12.5 Compose integration pattern
 
-| Image                   | Entrypoint                  | Declared volumes                                 | User              | Notes                                  |
-| ----------------------- | --------------------------- | ------------------------------------------------ | ----------------- | -------------------------------------- |
-| `tapirxl-parser:dev`    | `tapirxl` (typer)           | `/pcap` (RO bind), `/var/lib/tapirxl` (RW)       | `tapirxl` uid 10001 | One-shot; parses PCAP → JSONL          |
-| `tapirxl-shipper:dev`   | `/usr/bin/vector`           | `/var/lib/tapirxl`, `/var/lib/vector/data`       | `vector` upstream | Long-running; tails inventory file      |
-
-Both non-root. Required env on the shipper: `BLUEFLOW_URL`,
-`BLUEFLOW_TOKEN`. Optional: `TAPIRXL_INVENTORY_FILE`, `VECTOR_DATA_DIR`.
-
-### 12.5 Demo compose topology
+External stacks include the TapirXL fragment via Compose `include:` and add
+BlueFlow (and optionally traffic replay) on a shared Docker network. The
+fragment supplies parser + shipper + shared inventory/spool volumes; the
+including stack supplies BlueFlow API reachability and orchestration.
 
 ```
 ┌─────────────────────────────────────┐   ┌──────────────────────────────────┐
-│ packaging/docker/                   │   │ demo PR (separate)               │
-│   compose.tapirxl.yaml              │   │   compose.demo.yaml              │
-│                                     │   │     include:                     │
-│   services:                         │◄──┤       - compose.tapirxl.yaml     │
-│     tapirxl-parser   (one-shot)     │   │   services:                      │
-│     tapirxl-shipper  (long-running) │   │     blueflow-api                 │
-│   volumes:                          │   │     blueflow-db                  │
-│     tapirxl-inventory (parser→ship) │   │   playbook (orchestration)       │
-│     tapirxl-spool (Vector buffer)   │   │                                  │
+│ compose.tapirxl.yaml (this repo)    │   │ consuming stack (external)       │
+│   tapirxl-parser   (one-shot)         │◄──┤   include: compose.tapirxl.yaml  │
+│   tapirxl-shipper  (long-running)     │   │   blueflow + replay + network    │
+│   volumes: inventory, vector spool    │   │                                  │
 └─────────────────────────────────────┘   └──────────────────────────────────┘
 ```
 
-This PR ships the left half (Tier 1 building blocks). The demo PR adds
-BlueFlow services + a network on top via Compose v2.20+ `include:`.
+Operator workflows: [`packaging/docker/README.md`](../packaging/docker/README.md).
 
-### 12.6 Operator-facing docs
+### 12.6 Regression and compatibility guards
 
-- [`packaging/docker/README.md`](../packaging/docker/README.md) — dev,
-  containerized-dev, and demo-integration workflows, plus the
-  volume-permissions caveat.
-- [`configs/upload.env.example`](../configs/upload.env.example) —
-  annotated env template.
+| Guard              | Location                                                    | Enforces                                      |
+| ------------------ | ----------------------------------------------------------- | --------------------------------------------- |
+| Envelope golden    | `tests/regression/golden_synthetic_philips_envelope.jsonl`  | Bit-identical `HostEnvelope` output           |
+| Inventory golden   | `tests/regression/golden_synthetic_philips_inventory.jsonl` | Bit-identical `InventoryRecord` output        |
+| Assets golden      | `tests/regression/golden_synthetic_philips_assets.jsonl`    | Byte-identical Vector translation             |
+| Vector unit tests  | `configs/upload-vector.tests.toml`                          | 8 inline `[[tests]]` stanzas                  |
+| Schema parity      | `tests/compat/test_inventory_schema_parity.py`              | Pydantic ↔ JSON Schema alignment              |
+| Forbidden deps     | `tests/compat/test_deps.py`                                 | No LM stack or Python HTTP uploader on `main` |
+| Vector version pin | `tests/regression/test_vector_version_pinned.py`            | Shipper image tag matches CI expectation      |
 
-### 12.7 Explicitly out of scope (this PR)
+---
 
-| Item                                | Owned by                          |
-| ----------------------------------- | --------------------------------- |
-| Systemd units                       | Prod-planning PR                  |
-| `compose.demo.yaml` (BlueFlow stack) | Demo PR                           |
-| Live capture (`-i eth0`, NET_CAP_ADMIN, SPAN-traffic + tcpreplay) | Future parser PR |
-| `tapirxl parse --output FILE`       | Small parser follow-up PR         |
-| Bounded concurrency (`max_in_flight > 1`) | FR §14 follow-up              |
-| `Idempotency-Key` header            | BlueFlow ticket (server-side no-op short-circuit ships first; header design pre-agreed for the eventual side-effect-escaping case — see §12.3) |
+## §13 — Agent tier (`experimental/agent`)
+
+The `experimental/agent` branch carries a separate bounded context: DSPy/Ollama
+normalize and fusion, compiled modules, `models.toml`, and Jinja markdown
+reports. It consumes `HostEnvelope` JSONL from the stable parser and may emit
+enriched inventory or reports. None of that code, configuration, or runtime
+dependency ships on `main`; reintroduction is a CI-blocking regression (A7,
+`tests/compat/test_deps.py`).
+
+Architectural detail for LM tiers, signatures, and fusion paths is maintained on
+that branch alongside its implementation. `main` ends at deterministic envelopes,
+`InventoryRecord` projection, and Vector delivery to BlueFlow.
 
 ---
 

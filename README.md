@@ -15,12 +15,12 @@ redacted before any record leaves the parser.
 
 ### Prerequisites
 
-| Tool | Notes |
-|------|-------|
-| Python | 3.14+ |
-| [uv](https://docs.astral.sh/uv/) | Resolver + venv + lockfile |
-| [just](https://just.systems/man/en/) | Task runner (optional but handy) |
-| tshark | Required by `pyshark` for PCAP dissection — install via Wireshark or `brew install wireshark` |
+| Tool                                 | Notes                                                                                         |
+| ------------------------------------ | --------------------------------------------------------------------------------------------- |
+| Python                               | 3.14+                                                                                         |
+| [uv](https://docs.astral.sh/uv/)     | Resolver + venv + lockfile                                                                    |
+| [just](https://just.systems/man/en/) | Task runner (optional but handy)                                                              |
+| tshark                               | Required by `pyshark` for PCAP dissection — install via Wireshark or `brew install wireshark` |
 
 ### Install
 
@@ -108,7 +108,7 @@ no contradictions.
 
 ## Features
 
-- **Zero active probing** — read-only PCAP analysis; no packets sent, no DNS
+- **Zero active probing** — read-only packet analysis; no packets sent, no DNS
   lookups against observed names.
 - **Three signal pipelines** fused into a single canonical envelope keyed on
   MAC address.
@@ -135,7 +135,7 @@ One `InventoryRecord` object per line on stdout, conforming to
   "device_class": "PATIENT_MONITOR",
   "confidence": "HIGH",
   "ip": "10.0.1.42",
-  "path": "DETERMINISTIC_FINAL"
+  "path": "DETERMINISTIC_FINAL",
 }
 ```
 
