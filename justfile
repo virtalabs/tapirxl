@@ -44,12 +44,35 @@ golden-regenerate:
         | vector --quiet --config-toml configs/upload-vector.dryrun.toml \
         > tests/regression/golden_synthetic_philips_assets.jsonl
 
-# Validate the Vector configs (no sockets, no daemon)
+# Validate the Vector configs (no sockets, no daemon).
+# The two configs share a transform name, so they must be validated
+# independently (Vector merges multiple --config-toml args). Stub env
+# vars satisfy the http sink's required interpolation; `validate` does
+# not open sockets, so the stub values never reach the network.
+# VECTOR_DATA_DIR is redirected to a tempdir because /var/lib/vector
+# (the in-container default) does not exist on native dev machines.
 vector-validate:
-    vector validate configs/upload-vector.toml configs/upload-vector.dryrun.toml
+    #!/usr/bin/env sh
+    set -e
+    export VECTOR_DATA_DIR="${VECTOR_DATA_DIR:-${TMPDIR:-/tmp}/tapirxl-vector-data}"
+    export BLUEFLOW_URL="${BLUEFLOW_URL:-http://localhost:0}"
+    export BLUEFLOW_TOKEN="${BLUEFLOW_TOKEN:-validate-stub}"
+    export TAPIRXL_INVENTORY_FILE="${TAPIRXL_INVENTORY_FILE:-/var/lib/tapirxl/inventory.jsonl}"
+    mkdir -p "$VECTOR_DATA_DIR"
+    vector validate configs/upload-vector.toml
+    vector validate configs/upload-vector.dryrun.toml
 
-# Run the inline [[tests]] stanzas in configs/upload-vector.tests.toml
+# Run the inline [[tests]] stanzas in configs/upload-vector.tests.toml.
+# Same env-var indirection as `vector-validate` — `vector test` parses the
+# full sink config before running the test stanzas.
 vector-test:
+    #!/usr/bin/env sh
+    set -e
+    export VECTOR_DATA_DIR="${VECTOR_DATA_DIR:-${TMPDIR:-/tmp}/tapirxl-vector-data}"
+    export BLUEFLOW_URL="${BLUEFLOW_URL:-http://localhost:0}"
+    export BLUEFLOW_TOKEN="${BLUEFLOW_TOKEN:-test-stub}"
+    export TAPIRXL_INVENTORY_FILE="${TAPIRXL_INVENTORY_FILE:-/var/lib/tapirxl/inventory.jsonl}"
+    mkdir -p "$VECTOR_DATA_DIR"
     vector test configs/upload-vector.toml configs/upload-vector.tests.toml
 
 # Dev pipe: parser -> Vector dryrun -> stdout (translated AssetUpsertPayload JSONL)

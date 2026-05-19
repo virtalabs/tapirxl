@@ -18,8 +18,15 @@
 #    event root: .mac_address, .ip_address, ... are directly addressable.
 #  - file source emits raw lines as `.message`. Parse here so downstream
 #    code is source-agnostic.
+#  - `vector test` synthesizes events with `.message = ""` regardless of
+#    log_fields; the defensive parse below skips that and any other
+#    non-JSON .message rather than aborting (which would interact badly
+#    with `drop_on_error = true` and silently swallow tests).
 if is_string(.message) {
-  . = parse_json!(string!(.message))
+  parsed, err = parse_json(string!(.message))
+  if err == null && is_object(parsed) {
+    . = object!(parsed)
+  }
 }
 
 vendor_display = {
