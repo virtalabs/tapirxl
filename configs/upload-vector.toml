@@ -73,6 +73,7 @@ retry_max_duration_secs = 600
 retry_jitter_mode       = "Full"
 [sinks.blueflow.request.headers]
 Authorization = "Token ${BLUEFLOW_TOKEN}"
+Content-Type  = "application/json"
 Accept        = "application/json"
 
 # Durable disk buffer. drop_newest preserves backlog under sustained
