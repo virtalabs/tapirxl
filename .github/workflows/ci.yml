@@ -24,6 +24,11 @@ jobs:
         with:
           enable-cache: true
 
+      - name: Install tshark
+        # Several tests use pyshark, which shells out to `tshark`. Match the
+        # demo image (packaging/docker/demo/Dockerfile) which also bakes it in.
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tshark
+
       - run: uv sync --dev
 
       - run: uv run ruff check src/ tests/

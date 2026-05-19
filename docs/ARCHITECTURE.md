@@ -158,9 +158,10 @@ src/tapirxl/
 └── cli.py                 # Typer app — parse + fixtures
 
 configs/                   # Vector shipper (not Python; see §12)
-├── upload-vector.toml
-├── upload-vector.dryrun.toml
-├── upload-vector.vrl
+├── upload-vector.toml        # compose long-running (file source -> http)
+├── upload-vector.pcap.toml   # demo one-shot (stdin -> http; EOF-clean)
+├── upload-vector.dryrun.toml # dev (stdin -> console)
+├── upload-vector.vrl         # shared translation
 ├── upload-vector.tests.toml
 └── upload.env.example
 
@@ -503,13 +504,18 @@ InventoryRecord JSONL  ──┐
                                                                      └──→  retry budget 600s, full jitter
 ```
 
-Defined in [`configs/upload-vector.toml`](../configs/upload-vector.toml).
-Two source modes share the same transform and sink:
+Three configs share [`upload-vector.vrl`](../configs/upload-vector.vrl) for
+translation; they differ only in source/sink shape:
 
-- **stdin** — local dev and `just upload-dry-run PCAP`.
-- **file tail** — compose / demo: Vector tails
-  `${TAPIRXL_INVENTORY_FILE:-/var/lib/tapirxl/inventory.jsonl}` which the
-  parser writes via shell redirection inside a one-shot container.
+- **[`upload-vector.toml`](../configs/upload-vector.toml)** — compose
+  long-running. `file` source tails
+  `${TAPIRXL_INVENTORY_FILE:-/var/lib/tapirxl/inventory.jsonl}` (the
+  parser-shipper handoff path) and writes to the BlueFlow http sink.
+- **[`upload-vector.pcap.toml`](../configs/upload-vector.pcap.toml)** —
+  demo image `pcap` mode. `stdin` source + same http sink. The topology
+  shuts down on EOF; a `file` source would prevent that (Vector 0.55).
+- **[`upload-vector.dryrun.toml`](../configs/upload-vector.dryrun.toml)** —
+  dev. `stdin` source + `console` sink (stdout). No socket opened.
 
 ### 12.3 Delivery guarantees
 

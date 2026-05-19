@@ -1,0 +1,69 @@
+# TapirXL BlueFlow upload pipeline — one-shot pcap variant.
+#
+# Used by the unified demo image (packaging/docker/demo/Dockerfile) when
+# TAPIRXL_MODE=pcap. The parser pipes InventoryRecord JSONL on stdin; Vector
+# translates with the shared VRL and PUTs to BlueFlow's /api/assets/upsert/.
+# Vector exits cleanly when stdin reaches EOF — no file source, so the
+# topology shuts down once the parser finishes and the http sink drains.
+#
+# Sibling configs:
+#   configs/upload-vector.toml         compose long-running (file source)
+#   configs/upload-vector.dryrun.toml  dev / console sink (no socket)
+#
+# Translation and sink shape are intentionally kept identical to the prod
+# config (configs/upload-vector.toml). Any drift will be caught by the
+# byte-identical golden test (tests/regression/test_demo_image.py) and the
+# 8-stanza vector-test gate.
+#
+# Environment:
+#   BLUEFLOW_URL    required (e.g. http://blueflow-api:8000)
+#   BLUEFLOW_TOKEN  required (DRF token; "Authorization: Token <hex>")
+#   VECTOR_DATA_DIR optional (default: /var/lib/vector/data)
+
+data_dir = "${VECTOR_DATA_DIR:-/var/lib/vector/data}"
+
+[sources.inventory_stdin]
+type = "stdin"
+decoding.codec = "json"
+
+[transforms.to_asset]
+type   = "remap"
+inputs = ["inventory_stdin"]
+file   = "${UPLOAD_VECTOR_VRL_PATH:-configs/upload-vector.vrl}"
+drop_on_error  = true
+drop_on_abort  = true
+reroute_dropped = false
+
+[sinks.blueflow]
+type   = "http"
+inputs = ["to_asset"]
+uri    = "${BLUEFLOW_URL}/api/assets/upsert/"
+method = "put"
+
+[sinks.blueflow.batch]
+max_events = 1
+
+[sinks.blueflow.encoding]
+codec = "json"
+[sinks.blueflow.framing]
+method = "newline_delimited"
+
+# DRF token auth — same headers as upload-vector.toml. Vector's
+# `auth.strategy = "bearer"` emits "Bearer <tok>"; BlueFlow expects "Token".
+[sinks.blueflow.request]
+concurrency             = 1
+timeout_secs            = 30
+retry_max_duration_secs = 600
+retry_jitter_mode       = "Full"
+[sinks.blueflow.request.headers]
+Authorization = "Token ${BLUEFLOW_TOKEN}"
+Content-Type  = "application/json"
+Accept        = "application/json"
+
+# Disk buffer kept identical to upload-vector.toml for durability and
+# back-pressure semantics during retries; the one-shot run will normally
+# drain on first attempt.
+[sinks.blueflow.buffer]
+type      = "disk"
+max_size  = 1073741824
+when_full = "drop_newest"

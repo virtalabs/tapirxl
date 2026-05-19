@@ -2,7 +2,7 @@
 
 Builds (or reuses, via Docker's layer cache) ``tapirxl:demo-dev`` from
 ``packaging/docker/demo/Dockerfile``, runs it in ``pcap`` mode with
-``configs/upload-vector.dryrun.toml`` mounted over the baked-in production
+``configs/upload-vector.dryrun.toml`` mounted over the baked-in pcap
 config, and asserts the captured stdout is byte-identical to
 ``tests/regression/golden_synthetic_philips_assets.jsonl``.
 
@@ -90,7 +90,7 @@ def test_demo_image_byte_identical() -> None:
             "run",
             "--rm",
             "-v",
-            f"{DRYRUN_CONFIG.resolve()}:/etc/vector/upload-vector.toml:ro",
+            f"{DRYRUN_CONFIG.resolve()}:/etc/vector/upload-vector.pcap.toml:ro",
             "-v",
             f"{fixtures_dir}:/pcap:ro",
             "-e",
