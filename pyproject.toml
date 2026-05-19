@@ -3,7 +3,11 @@ name = "tapirxl"
 version = "0.3.0"
 requires-python = ">=3.14"
 dependencies = [
-    "pyshark",
+    # pyshark is strictly pinned because the golden regression test
+    # (tests/regression/) asserts byte-identical output. pyshark is on
+    # the path to replacement/supplement by bespoke DPI tooling, so
+    # floating-version compatibility is not a goal.
+    "pyshark==0.6",
     "pydantic>=2",
     "typer",
 ]

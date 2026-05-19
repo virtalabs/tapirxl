@@ -43,7 +43,13 @@ _DeviceClassLiteral = Literal[  # type: ignore[valid-type]
 
 
 class InventoryRecord(BaseModel):
-    """One passively-observed device record, emitted as JSONL when --json is set."""
+    """One passively-observed device record, emitted as JSONL when --json is set.
+
+    Required fields mirror the wire contract in
+    ``schemas/inventory_record.schema.json``: ``ip_address``, ``mac_address``,
+    ``open_ports``, and ``confidence`` must always be present (``confidence``
+    may be ``None`` for skipped hosts; ``open_ports`` may be empty).
+    """
 
     hostname: str | None = None
     ip_address: str
@@ -52,5 +58,5 @@ class InventoryRecord(BaseModel):
     product: _ProductLiteral | None = None
     version: str | None = None
     device_class: _DeviceClassLiteral | None = None
-    open_ports: list[int] = Field(default_factory=list)
-    confidence: Literal["HIGH", "MEDIUM", "LOW"] | None = None
+    open_ports: list[int] = Field(...)
+    confidence: Literal["HIGH", "MEDIUM", "LOW"] | None = Field(...)

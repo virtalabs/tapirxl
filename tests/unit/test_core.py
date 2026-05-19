@@ -209,12 +209,45 @@ class TestSignalObservation:
 
 class TestInventoryRecord:
     def test_required_fields(self):
-        rec = InventoryRecord(ip_address="10.0.0.1", mac_address="AA:BB:CC:DD:EE:FF", open_ports=[])
+        rec = InventoryRecord(
+            ip_address="10.0.0.1",
+            mac_address="AA:BB:CC:DD:EE:FF",
+            open_ports=[],
+            confidence=None,
+        )
         assert rec.hostname is None
         assert rec.vendor is None
 
     def test_valid_vendor(self):
         rec = InventoryRecord(
-            ip_address="10.0.0.1", mac_address="AA:BB:CC:DD:EE:FF", open_ports=[], vendor="philips"
+            ip_address="10.0.0.1",
+            mac_address="AA:BB:CC:DD:EE:FF",
+            open_ports=[],
+            vendor="philips",
+            confidence=None,
         )
         assert rec.vendor == "philips"
+
+    def test_confidence_is_required(self):
+        """G8 reconciliation — `confidence` must be present (may be None)."""
+        import pytest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            InventoryRecord(
+                ip_address="10.0.0.1",
+                mac_address="AA:BB:CC:DD:EE:FF",
+                open_ports=[],
+            )
+
+    def test_open_ports_is_required(self):
+        """G8 reconciliation — `open_ports` must be present (may be empty)."""
+        import pytest
+        from pydantic import ValidationError
+
+        with pytest.raises(ValidationError):
+            InventoryRecord(
+                ip_address="10.0.0.1",
+                mac_address="AA:BB:CC:DD:EE:FF",
+                confidence=None,
+            )
