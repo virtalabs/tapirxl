@@ -63,6 +63,7 @@ cli.py          # typer app; wires subcommands to parser/ and agent/
 ```
 
 **Artifact dirs (gitignored, writable):**
+
 - `pcap/` — input captures
 - `reports/` — markdown output
 - `agents/compiled_fusion.json`, `agents/compiled_normalize.json`
@@ -75,18 +76,18 @@ cli.py          # typer app; wires subcommands to parser/ and agent/
 
 ## Hard Rules (enforce always)
 
-| # | Rule |
-|---|------|
-| **N1** | `agent/` and `parser/` MUST NOT import each other. `core/` and `schemas/` import nothing from the project. |
-| **N2** | Only `agent/config.py` reads `models.toml`. Only `agent/adapters/ollama_lm.py` constructs `dspy.LM`. Hardcoded model strings anywhere else in `agent/` are a bug. |
-| **N3** | PHI redaction is mandatory **before** writing to the envelope: HL7 PID-3/5/7/8 and DICOM `(0010,*)` tags → `"<PHI>"`. Institution `(0008,0080)` is OK to keep. |
-| **N4** | All extractors are read-only. No sockets, no packets sent, no DNS lookups against observed names. |
-| **N5** | `NormalizeSignal` output must be verbatim from `candidate_labels` or `OTHER:<reason>`. Enforced post-hoc; non-matching → field left ambiguous, confidence capped at MEDIUM. **No retries** — fix compile-set quality instead. |
-| **N6** | **stdout carries the data contract; everything else goes to stderr.** For commands that emit structured data on stdout (`tapirxl parse`, `tapirxl parse --json`), stdout is reserved for JSONL conforming to the documented schema. Summaries, progress, counts, warnings, banners, paths, debug logs, and any third-party library noise (pyshark, tshark, dspy, ollama) go to stderr. Defense-in-depth: save the real stdout fd at command entry, redirect `sys.stdout → sys.stderr` for the duration of the work phase, then write JSONL using the saved fd. Pre-commit any new CLI command by piping it through `jq -e .` against a known-good fixture. |
-| **N7** | The `DETERMINISTIC_FINAL` code path (≈60–70% of hosts) MUST skip both LM tiers entirely. Any regression here multiplies wall-clock 5–10×. |
-| **N8** | Envelope primary key is MAC (`host_id`). IP is observational. Do not key envelopes on IP. |
-| **N9** | Adding new fields to the envelope is non-breaking. Renaming or removing fields breaks compiled DSPy modules — treat field names as ABI. |
-| **N10** | Fusion reasoning trace MUST explicitly cite any contradiction when `contradiction_flag=True`. Triage caps confidence but never auto-fails. |
+| #       | Rule                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
+| ------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **N1**  | `agent/` and `parser/` MUST NOT import each other. `core/` and `schemas/` import nothing from the project.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **N2**  | Only `agent/config.py` reads `models.toml`. Only `agent/adapters/ollama_lm.py` constructs `dspy.LM`. Hardcoded model strings anywhere else in `agent/` are a bug.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **N3**  | PHI redaction is mandatory **before** writing to the envelope: HL7 PID-3/5/7/8 and DICOM `(0010,*)` tags → `"<PHI>"`. Institution `(0008,0080)` is OK to keep.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                             |
+| **N4**  | All extractors are read-only. No sockets, no packets sent, no DNS lookups against observed names.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
+| **N5**  | `NormalizeSignal` output must be verbatim from `candidate_labels` or `OTHER:<reason>`. Enforced post-hoc; non-matching → field left ambiguous, confidence capped at MEDIUM. **No retries** — fix compile-set quality instead.                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| **N6**  | **stdout carries the data contract; everything else goes to stderr.** For commands that emit structured data on stdout (`tapirxl parse`, `tapirxl parse --json`), stdout is reserved for JSONL conforming to the documented schema. Summaries, progress, counts, warnings, banners, paths, debug logs, and any third-party library noise (pyshark, tshark, dspy, ollama) go to stderr. Defense-in-depth: save the real stdout fd at command entry, redirect `sys.stdout → sys.stderr` for the duration of the work phase, then write JSONL using the saved fd. Pre-commit any new CLI command by piping it through `jq -e .` against a known-good fixture. |
+| **N7**  | The `DETERMINISTIC_FINAL` code path (≈60–70% of hosts) MUST skip both LM tiers entirely. Any regression here multiplies wall-clock 5–10×.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **N8**  | Envelope primary key is MAC (`host_id`). IP is observational. Do not key envelopes on IP.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| **N9**  | Adding new fields to the envelope is non-breaking. Renaming or removing fields breaks compiled DSPy modules — treat field names as ABI.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| **N10** | Fusion reasoning trace MUST explicitly cite any contradiction when `contradiction_flag=True`. Triage caps confidence but never auto-fails.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 
 ---
 
@@ -168,7 +169,7 @@ After NORMALIZE completes, **re-run routing** — hosts can upgrade to
 `DICOM_PHILIPS_IMAGE_UID` — `image_uid_arc_counts["1.2.840.113704."] > 0`  
 `DHCP_MEDICAL_VENDOR_CLASS` — DHCP option-60 matches medical vendor list  
 `HL7_CLINICAL_INTERFACE` — `hl7.mllp_detected`  
-`SNMP_MEDICAL_SYSDESCR` — sysDescr contains medical vendor prefix  
+`SNMP_MEDICAL_SYSDESCR` — sysDescr contains medical vendor prefix
 
 ### Confidence rules (binding for FuseSignals)
 
@@ -181,7 +182,7 @@ After NORMALIZE completes, **re-run routing** — hosts can upgrade to
 `C1 OUI_DICOM_VENDOR_MISMATCH` — flag, often benign  
 `C2 MDNS_SPOOF_SUSPECTED` — cap at MEDIUM  
 `C3 PHILIPS_WSDISC_VS_NON_PHILIPS_DICOM` — flag for investigation  
-`C4 DOMAIN_HOSTNAME_MISMATCH` — log only  
+`C4 DOMAIN_HOSTNAME_MISMATCH` — log only
 
 ### FusionOutput fields
 
@@ -189,13 +190,13 @@ After NORMALIZE completes, **re-run routing** — hosts can upgrade to
 
 ### InventoryRecord → envelope mapping (for `_to_cpe_*` and `_to_device_class`)
 
-| Field | Source priority |
-|-------|----------------|
-| `hostname` | DHCP option 12 → LLMNR self-claim → SMB NTLMSSP `MsvAvNbComputerName`/`workstation` → mDNS A |
-| `vendor` (CPE slug) | DICOM manufacturer/impl_uid → WS-D prefix → DHCP VCI → OUI |
-| `product` (CPE slug) | DICOM model/impl_uid → DHCP VCI → WS-D series code |
-| `device_class` | DICOM Modality (CT/MR/US/etc.) → WS-D series → DHCP role → heuristic |
-| `version` | DICOM `(0018,1020)` → mDNS TXT firmware key |
+| Field                | Source priority                                                                              |
+| -------------------- | -------------------------------------------------------------------------------------------- |
+| `hostname`           | DHCP option 12 → LLMNR self-claim → SMB NTLMSSP `MsvAvNbComputerName`/`workstation` → mDNS A |
+| `vendor` (CPE slug)  | DICOM manufacturer/impl_uid → WS-D prefix → DHCP VCI → OUI                                   |
+| `product` (CPE slug) | DICOM model/impl_uid → DHCP VCI → WS-D series code                                           |
+| `device_class`       | DICOM Modality (CT/MR/US/etc.) → WS-D series → DHCP role → heuristic                         |
+| `version`            | DICOM `(0018,1020)` → mDNS TXT firmware key                                                  |
 
 ---
 
@@ -225,7 +226,7 @@ UUID chars 0–7 = vendor prefix hex (e.g. `50484248`). First 4 chars → vendor
 `TTL=64, WScale=7, SACK+TS` → Linux recent  
 `TTL=64, MSS=1460, WScale=6, TS` → macOS 12+  
 `TTL=255` → iOS/Cisco/embedded  
-`TTL=128, MSS=512–536` → medical embedded  
+`TTL=128, MSS=512–536` → medical embedded
 
 ---
 
@@ -293,7 +294,8 @@ When working on any milestone, verify the **exit criterion** before marking comp
 - Do not put model strings (`ollama_chat/...`) anywhere except `models.toml` and `agent/config.py`.
 - Do not add `__init__.py` logic that imports across domain boundaries.
 - Do not call `dspy.configure(lm=...)` outside of `agent/` initialization.
-- Do not pass raw PHI (PID-3/5/7/8, DICOM (0010,*) tags) to any LM call.
+- Do not pass raw PHI (PID-3/5/7/8, DICOM (0010,\*) tags) to any LM call.
 - Do not add `null`/empty pipeline blocks to the envelope — absent means not fired.
 - Do not key host state on IP address; always key on MAC (`host_id`).
 - Do not write code that sends packets or resolves observed hostnames via DNS.
+- Do not write any documentation that references .gitignored documentation.
