@@ -24,6 +24,29 @@ just parse-verbose pcap/x.pcap # raw HostEnvelope JSONL on stdout
 
 Entry points on `main` (from `[project.scripts]`): `tapirxl`, `tapirxl-parse`, `tapirxl-fixtures`.
 
+### Log shipper (Vector)
+
+Upstream delivery to BlueFlow's `/api/assets/upsert/` is implemented as a
+Vector pipeline at [`configs/upload-vector.toml`](configs/upload-vector.toml),
+not as Python code. See N11 below and `docs/ARCHITECTURE.md §12` for the
+full contract.
+
+```bash
+brew install vectordotdev/brew/vector   # or apt: vector.dev/docs/setup/installation/
+
+just vector-validate          # config syntax + schema check (no sockets)
+just vector-test              # runs the 8 [[tests]] stanzas
+just upload-dry-run pcap/x.pcap   # parser | vector dryrun -> stdout JSON
+just docker-build             # builds tapirxl-parser:dev + tapirxl-shipper:dev
+just compose-config           # validates packaging/docker/compose.tapirxl.yaml
+```
+
+The Vector binary version is pinned in
+[`packaging/docker/vector/Dockerfile`](packaging/docker/vector/Dockerfile)'s
+`FROM` tag and enforced by
+[`tests/regression/test_vector_version_pinned.py`](tests/regression/test_vector_version_pinned.py)
+— same byte-equality discipline as `pyshark==0.6`.
+
 The agent tier (`tapirxl agent`, `tapirxl-agent`, `just agent`, `just agent-no-llm`,
 `just compile-fusion`, `just compile-normalize`) and its DSPy/Ollama/Jinja
 dependencies live on the `experimental/agent` branch only — see "Branching
@@ -88,6 +111,7 @@ cli.py          # typer app; wires subcommands to parser/ and agent/
 | **N8**  | Envelope primary key is MAC (`host_id`). IP is observational. Do not key envelopes on IP.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
 | **N9**  | Adding new fields to the envelope is non-breaking. Renaming or removing fields breaks compiled DSPy modules — treat field names as ABI.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
 | **N10** | Fusion reasoning trace MUST explicitly cite any contradiction when `contradiction_flag=True`. Triage caps confidence but never auto-fails.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
+| **N11** | Upstream delivery (BlueFlow upsert) is implemented by a Vector pipeline at [`configs/upload-vector.toml`](configs/upload-vector.toml), **not** by Python code. The repo MUST NOT add `httpx`, `tenacity`, `keyring`, or any sidecar/uploader Python package. The G11 dep guard at [`tests/compat/test_deps.py`](tests/compat/test_deps.py) enforces this. Translation correctness is guarded by `just vector-test` (8 stanzas) plus the byte-identical golden at [`tests/regression/golden_synthetic_philips_assets.jsonl`](tests/regression/golden_synthetic_philips_assets.jsonl).                                                                          |
 
 ---
 
@@ -299,3 +323,5 @@ When working on any milestone, verify the **exit criterion** before marking comp
 - Do not key host state on IP address; always key on MAC (`host_id`).
 - Do not write code that sends packets or resolves observed hostnames via DNS.
 - Do not write any documentation that references .gitignored documentation.
+- Do not add an `uploader/` Python package, `httpx`, `tenacity`, or `keyring` to deliver records to BlueFlow. The shipper is Vector (N11). Translation lives in [`configs/upload-vector.vrl`](configs/upload-vector.vrl); pipeline shape lives in [`configs/upload-vector.toml`](configs/upload-vector.toml).
+- Do not hardcode the BlueFlow URL or auth token anywhere. They live in env (`BLUEFLOW_URL`, `BLUEFLOW_TOKEN`); see [`configs/upload.env.example`](configs/upload.env.example).

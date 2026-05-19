@@ -1,0 +1,61 @@
+# TapirXL building-block compose fragment.
+#
+# Include from a parent demo compose:
+#
+#   # compose.demo.yaml (in the demo PR)
+#   include:
+#     - packaging/docker/compose.tapirxl.yaml
+#   services:
+#     blueflow-api: ...
+#     blueflow-db:  ...
+#
+# Requires Compose v2.20+ for the `include:` directive.
+#
+# What this fragment ships:
+#   tapirxl-parser   One-shot: docker compose run --rm tapirxl-parser \
+#                                sh -c 'tapirxl parse /pcap/<f.pcap> --json
+#                                       >> /var/lib/tapirxl/inventory.jsonl'
+#   tapirxl-shipper  Long-running: Vector tails the inventory file and
+#                                  PUTs translated AssetUpsertPayload
+#                                  records to ${BLUEFLOW_URL}.
+#   tapirxl-inventory  Named volume — parser writes, shipper reads.
+#   tapirxl-spool      Named volume — Vector disk buffer + file source
+#                                     checkpoints.
+#
+# What the demo PR adds on top:
+#   - blueflow-* services (api, db, worker, ...) on a shared network.
+#   - The orchestration playbook that drives the one-shot parser runs
+#     and verifies BlueFlow received records.
+
+services:
+  tapirxl-parser:
+    build:
+      context: ../..
+      dockerfile: packaging/docker/parser/Dockerfile
+    image: tapirxl-parser:dev
+    volumes:
+      - tapirxl-inventory:/var/lib/tapirxl
+      - ../../pcap:/pcap:ro
+    # Parser is a one-shot. Invoke via `docker compose run --rm
+    # tapirxl-parser ...`; `docker compose up` should NOT include
+    # this service. Demo authors can gate it via a custom `profiles:`
+    # entry in their parent compose if they want.
+
+  tapirxl-shipper:
+    build:
+      context: ../..
+      dockerfile: packaging/docker/vector/Dockerfile
+    image: tapirxl-shipper:dev
+    volumes:
+      - tapirxl-inventory:/var/lib/tapirxl:ro
+      - tapirxl-spool:/var/lib/vector/data
+    environment:
+      BLUEFLOW_URL: ${BLUEFLOW_URL:-http://blueflow-api:8000}
+      BLUEFLOW_TOKEN: ${BLUEFLOW_TOKEN:?BLUEFLOW_TOKEN required for the shipper}
+      TAPIRXL_INVENTORY_FILE: /var/lib/tapirxl/inventory.jsonl
+      VECTOR_DATA_DIR: /var/lib/vector/data
+    restart: unless-stopped
+
+volumes:
+  tapirxl-inventory:
+  tapirxl-spool:

@@ -1,0 +1,257 @@
+# Vector unit tests for the to_asset transform.
+#
+# Mirrors the 8 records in tests/regression/golden_synthetic_philips_inventory.jsonl.
+# Run via: `just vector-test` (which passes both this file and the parent
+# upload-vector.toml so the to_asset transform is in scope).
+#
+# Departure from the literal plan: tests live in this file rather than
+# inline in upload-vector.toml, to keep the production config focused.
+# Same `vector test` semantics either way.
+
+# Helper sink so `vector test` has something to extract from when the
+# main upload-vector.toml's http sink can't be instantiated (missing
+# BLUEFLOW_URL env-var). Console here is unused at test time; tests
+# operate on the transform output directly.
+[sinks.tests_noop]
+type   = "blackhole"
+inputs = ["to_asset"]
+print_interval_secs = 0
+
+## ---- 1: microsoft / windows_10 / workstation / HIGH (full fields) ----
+
+[[tests]]
+name = "record_01_microsoft_windows_10_high"
+
+[[tests.inputs]]
+insert_at = "to_asset"
+type      = "log"
+[tests.inputs.log_fields]
+hostname     = "CCPLATFORM01"
+ip_address   = "10.10.20.20"
+mac_address  = "00:09:5C:BB:CC:02"
+vendor       = "microsoft"
+product      = "windows_10"
+device_class = "workstation"
+open_ports   = [5355]
+confidence   = "HIGH"
+
+[[tests.outputs]]
+extract_from = "to_asset"
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+  assert_eq!(.mac_address, "00:09:5C:BB:CC:02")
+  assert_eq!(.ip_address, "10.10.20.20")
+  assert_eq!(.hostname, "CCPLATFORM01")
+  assert_eq!(.manufacturer, "Microsoft")
+  assert_eq!(.model, "Windows 10")
+  assert_eq!(.category, "workstation")
+  assert_eq!(.open_ports_tcp, [5355])
+  assert_eq!(.external_keys.tapirxl_confidence, "HIGH")
+  assert!(!exists(.vendor),         "source key vendor must be stripped")
+  assert!(!exists(.product),        "source key product must be stripped")
+  assert!(!exists(.device_class),   "source key device_class must be stripped")
+  assert!(!exists(.confidence),     "source key confidence must be stripped")
+  assert!(!exists(.app_sw_version), "no version present, key must be absent")
+  true
+'''
+
+## ---- 2: philips / intellivue_mx700 / patient_monitor / LOW ----
+
+[[tests]]
+name = "record_02_philips_intellivue_mx700_low"
+
+[[tests.inputs]]
+insert_at = "to_asset"
+type      = "log"
+[tests.inputs.log_fields]
+hostname     = "MX700-bed12"
+ip_address   = "10.10.10.21"
+mac_address  = "00:09:FB:BD:75:6D"
+vendor       = "philips"
+product      = "intellivue_mx700"
+device_class = "patient_monitor"
+open_ports   = [3702]
+confidence   = "LOW"
+
+[[tests.outputs]]
+extract_from = "to_asset"
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+  assert_eq!(.manufacturer, "Philips")
+  assert_eq!(.model, "IntelliVue MX700")
+  assert_eq!(.category, "patient_monitor")
+  assert_eq!(.external_keys.tapirxl_confidence, "LOW")
+  true
+'''
+
+## ---- 3: paloaltonetworks / pan_os / firewall / LOW (null hostname, empty ports) ----
+
+[[tests]]
+name = "record_03_paloalto_pan_os_firewall_null_hostname"
+
+[[tests.inputs]]
+insert_at = "to_asset"
+type      = "log"
+[tests.inputs.log_fields]
+ip_address   = "10.10.20.1"
+mac_address  = "00:1B:17:00:01:11"
+vendor       = "paloaltonetworks"
+product      = "pan_os"
+device_class = "firewall"
+open_ports   = []
+confidence   = "LOW"
+
+[[tests.outputs]]
+extract_from = "to_asset"
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+  assert_eq!(.manufacturer, "Palo Alto Networks")
+  assert_eq!(.model, "PAN-OS")
+  assert_eq!(.category, "firewall")
+  assert_eq!(.open_ports_tcp, [])
+  assert!(!exists(.hostname), "null hostname must be omitted")
+  true
+'''
+
+## ---- 4: microsoft / windows_server / server / LOW ----
+
+[[tests]]
+name = "record_04_microsoft_windows_server_low"
+
+[[tests.inputs]]
+insert_at = "to_asset"
+type      = "log"
+[tests.inputs.log_fields]
+hostname     = "PACSARCH01"
+ip_address   = "10.10.20.30"
+mac_address  = "00:50:56:8B:CA:FE"
+vendor       = "microsoft"
+product      = "windows_server"
+device_class = "server"
+open_ports   = [5355]
+confidence   = "LOW"
+
+[[tests.outputs]]
+extract_from = "to_asset"
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+  assert_eq!(.manufacturer, "Microsoft")
+  assert_eq!(.model, "Windows Server")
+  assert_eq!(.category, "server")
+  true
+'''
+
+## ---- 5: vmware / null product / null device_class / LOW (vendor-only) ----
+
+[[tests]]
+name = "record_05_vmware_vendor_only"
+
+[[tests.inputs]]
+insert_at = "to_asset"
+type      = "log"
+[tests.inputs.log_fields]
+ip_address  = "10.10.20.7"
+mac_address = "00:50:56:8B:DC:01"
+vendor      = "vmware"
+open_ports  = []
+confidence  = "LOW"
+
+[[tests.outputs]]
+extract_from = "to_asset"
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+  assert_eq!(.manufacturer, "VMware")
+  assert_eq!(.external_keys.tapirxl_confidence, "LOW")
+  assert!(!exists(.hostname), "null hostname must be omitted")
+  assert!(!exists(.model),    "null product must be omitted (no model)")
+  assert!(!exists(.category), "null device_class must be omitted")
+  true
+'''
+
+## ---- 6: philips / brilliance_ict / null device_class / HIGH ----
+
+[[tests]]
+name = "record_06_philips_brilliance_ict_no_category"
+
+[[tests.inputs]]
+insert_at = "to_asset"
+type      = "log"
+[tests.inputs.log_fields]
+hostname    = "BRILL-CT01"
+ip_address  = "10.10.10.30"
+mac_address = "00:90:20:AA:BB:01"
+vendor      = "philips"
+product     = "brilliance_ict"
+open_ports  = []
+confidence  = "HIGH"
+
+[[tests.outputs]]
+extract_from = "to_asset"
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+  assert_eq!(.manufacturer, "Philips")
+  assert_eq!(.model, "Brilliance iCT")
+  assert!(!exists(.category), "null device_class must be omitted")
+  true
+'''
+
+## ---- 7: microsoft / windows_10 / workstation / LOW (second windows_10) ----
+
+[[tests]]
+name = "record_07_microsoft_windows_10_low"
+
+[[tests.inputs]]
+insert_at = "to_asset"
+type      = "log"
+[tests.inputs.log_fields]
+hostname     = "ACMEWS02"
+ip_address   = "10.10.10.41"
+mac_address  = "60:A5:E2:AE:32:1A"
+vendor       = "microsoft"
+product      = "windows_10"
+device_class = "workstation"
+open_ports   = [5355]
+confidence   = "LOW"
+
+[[tests.outputs]]
+extract_from = "to_asset"
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+  assert_eq!(.model, "Windows 10")
+  assert_eq!(.external_keys.tapirxl_confidence, "LOW")
+  true
+'''
+
+## ---- 8: microsoft / windows_7 / workstation / LOW ----
+
+[[tests]]
+name = "record_08_microsoft_windows_7_low"
+
+[[tests.inputs]]
+insert_at = "to_asset"
+type      = "log"
+[tests.inputs.log_fields]
+hostname     = "ACMECT01"
+ip_address   = "10.10.10.40"
+mac_address  = "E8:D8:D1:AA:BB:02"
+vendor       = "microsoft"
+product      = "windows_7"
+device_class = "workstation"
+open_ports   = [5355]
+confidence   = "LOW"
+
+[[tests.outputs]]
+extract_from = "to_asset"
+[[tests.outputs.conditions]]
+type = "vrl"
+source = '''
+  assert_eq!(.model, "Windows 7")
+  true
+'''

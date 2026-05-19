@@ -101,17 +101,18 @@ plumbing).
 
 ## §4 — Toolchain
 
-| Tool             | Role                                       |
-| ---------------- | ------------------------------------------ |
-| Python 3.14      | Runtime                                    |
-| uv               | Resolver + venv + lockfile                 |
-| ruff             | Linter + formatter                         |
-| just             | Task runner                                |
-| pytest           | Test runner                                |
-| mypy             | Type checker (dev)                         |
-| pyshark          | PCAP dissection (depends on `tshark` PATH) |
-| pydantic v2      | Wire-contract models                       |
-| typer            | CLI                                        |
+| Tool             | Role                                                                |
+| ---------------- | ------------------------------------------------------------------- |
+| Python 3.14      | Runtime                                                             |
+| uv               | Resolver + venv + lockfile                                          |
+| ruff             | Linter + formatter                                                  |
+| just             | Task runner                                                         |
+| pytest           | Test runner                                                         |
+| mypy             | Type checker (dev)                                                  |
+| pyshark          | PCAP dissection (depends on `tshark` PATH)                          |
+| pydantic v2      | Wire-contract models                                                |
+| typer            | CLI                                                                 |
+| Vector           | Log shipper to BlueFlow (see §12). Binary pin in `packaging/docker/vector/Dockerfile`. |
 
 `pyproject.toml` is the single source of project metadata. Recipes live in
 [`justfile`](../justfile).
@@ -323,6 +324,134 @@ Entry points (declared in `pyproject.toml`):
 - `tapirxl` — the Typer app ([`src/tapirxl/cli.py`](../src/tapirxl/cli.py))
 - `tapirxl-parse` — direct call to [`parser/cli.py:main`](../src/tapirxl/parser/cli.py)
 - `tapirxl-fixtures` — direct call to [`fixtures/cli.py:main`](../src/tapirxl/fixtures/cli.py)
+
+---
+
+## §12 — Log Shipper (Vector)
+
+Upstream delivery of `InventoryRecord` JSONL to BlueFlow's
+`/api/assets/upsert/` endpoint is implemented as a **Vector pipeline**,
+not Python code. This is binding (CLAUDE.md N11) and structurally
+enforced by the dep guard at
+[`tests/compat/test_deps.py`](../tests/compat/test_deps.py): the repo
+has no `httpx`, `tenacity`, or `keyring` dependency, and adding any
+`uploader/` package would break that test.
+
+### 12.1 Translation contract
+
+| InventoryRecord field | BlueFlow Asset field    | Mapping                                                       |
+| --------------------- | ----------------------- | ------------------------------------------------------------- |
+| `mac_address`         | `mac_address`           | Verbatim                                                      |
+| `ip_address`          | `ip_address`            | Verbatim                                                      |
+| `hostname`            | `hostname`              | Omitted when source is `null`                                 |
+| `vendor` (slug)       | `manufacturer` (display)| 5-entry lookup; unknown slug passes through                   |
+| `product` (slug)      | `model` (display)       | 7-entry lookup; unknown slug passes through                   |
+| `version`             | `app_sw_version`        | Omitted when source is `null`                                 |
+| `device_class`        | `category`              | Verbatim slug passthrough                                     |
+| `open_ports`          | `open_ports_tcp`        | Verbatim (always present, may be `[]`)                        |
+| `confidence`          | `external_keys.tapirxl_confidence` | Whole `external_keys` key omitted when source is `null` |
+
+Implemented in [`configs/upload-vector.vrl`](../configs/upload-vector.vrl).
+The VRL transform builds a fresh `out` object and assigns it to `.`, so
+any unmapped source field is dropped at the transform boundary
+(equivalent of Pydantic `extra="forbid"`).
+
+The mapping is the wire contract between this repo and BlueFlow. Tests:
+
+- 8 inline `[[tests]]` stanzas in
+  [`configs/upload-vector.tests.toml`](../configs/upload-vector.tests.toml)
+  (one per record in the existing inventory golden).
+- Byte-identical pipeline test at
+  [`tests/regression/test_vector_pipeline.py`](../tests/regression/test_vector_pipeline.py)
+  comparing translated output against
+  [`tests/regression/golden_synthetic_philips_assets.jsonl`](../tests/regression/golden_synthetic_philips_assets.jsonl).
+
+### 12.2 Pipeline shape
+
+```
+InventoryRecord JSONL  ──┐
+                          ├──→  [transform: remap (VRL)]  ──→  [http sink → BlueFlow]
+  (stdin OR file tail) ──┘                                           │
+                                                                     ├──→  disk buffer (1 GiB, drop_newest)
+                                                                     └──→  retry budget 600s, full jitter
+```
+
+Defined in [`configs/upload-vector.toml`](../configs/upload-vector.toml).
+Two source modes share the same transform and sink:
+
+- **stdin** — local dev and `just upload-dry-run PCAP`.
+- **file tail** — compose / demo: Vector tails
+  `${TAPIRXL_INVENTORY_FILE:-/var/lib/tapirxl/inventory.jsonl}` which the
+  parser writes via shell redirection inside a one-shot container.
+
+### 12.3 Delivery guarantees
+
+| Property                 | Value                                                              |
+| ------------------------ | ------------------------------------------------------------------ |
+| Concurrency              | `request.concurrency = 1` (single-flight)                          |
+| Batch size               | `batch.max_events = 1` (one PUT per record)                        |
+| Auth                     | `Authorization: Token ${BLUEFLOW_TOKEN}` (DRF, not RFC6750 Bearer) |
+| Retry budget             | 600 s wall-clock per record, exponential w/ full jitter            |
+| Retry-After (429/503)    | Honored                                                            |
+| Durability under failure | 1 GiB on-disk buffer (`buffer.type = "disk"`)                      |
+| Overflow behavior        | `drop_newest` — preserves backlog; newer state for a MAC will arrive again |
+| Delivery semantics       | At-least-once; BlueFlow upsert is keyed by MAC and idempotent by content |
+
+`Idempotency-Key` header is **deferred** (FR §13) pending a written
+answer from the BlueFlow team on upsert idempotency. Adding it later is
+one VRL line.
+
+### 12.4 Image contract (consumed by the demo PR)
+
+Packaging lives at [`packaging/docker/`](../packaging/docker/). Two
+images are produced from the compose fragment
+[`packaging/docker/compose.tapirxl.yaml`](../packaging/docker/compose.tapirxl.yaml):
+
+| Image                   | Entrypoint                  | Declared volumes                                 | User              | Notes                                  |
+| ----------------------- | --------------------------- | ------------------------------------------------ | ----------------- | -------------------------------------- |
+| `tapirxl-parser:dev`    | `tapirxl` (typer)           | `/pcap` (RO bind), `/var/lib/tapirxl` (RW)       | `tapirxl` uid 10001 | One-shot; parses PCAP → JSONL          |
+| `tapirxl-shipper:dev`   | `/usr/bin/vector`           | `/var/lib/tapirxl`, `/var/lib/vector/data`       | `vector` upstream | Long-running; tails inventory file      |
+
+Both non-root. Required env on the shipper: `BLUEFLOW_URL`,
+`BLUEFLOW_TOKEN`. Optional: `TAPIRXL_INVENTORY_FILE`, `VECTOR_DATA_DIR`.
+
+### 12.5 Demo compose topology
+
+```
+┌─────────────────────────────────────┐   ┌──────────────────────────────────┐
+│ packaging/docker/                   │   │ demo PR (separate)               │
+│   compose.tapirxl.yaml              │   │   compose.demo.yaml              │
+│                                     │   │     include:                     │
+│   services:                         │◄──┤       - compose.tapirxl.yaml     │
+│     tapirxl-parser   (one-shot)     │   │   services:                      │
+│     tapirxl-shipper  (long-running) │   │     blueflow-api                 │
+│   volumes:                          │   │     blueflow-db                  │
+│     tapirxl-inventory (parser→ship) │   │   playbook (orchestration)       │
+│     tapirxl-spool (Vector buffer)   │   │                                  │
+└─────────────────────────────────────┘   └──────────────────────────────────┘
+```
+
+This PR ships the left half (Tier 1 building blocks). The demo PR adds
+BlueFlow services + a network on top via Compose v2.20+ `include:`.
+
+### 12.6 Operator-facing docs
+
+- [`packaging/docker/README.md`](../packaging/docker/README.md) — dev,
+  containerized-dev, and demo-integration workflows, plus the
+  volume-permissions caveat.
+- [`configs/upload.env.example`](../configs/upload.env.example) —
+  annotated env template.
+
+### 12.7 Explicitly out of scope (this PR)
+
+| Item                                | Owned by                          |
+| ----------------------------------- | --------------------------------- |
+| Systemd units                       | Prod-planning PR                  |
+| `compose.demo.yaml` (BlueFlow stack) | Demo PR                           |
+| Live capture (`-i eth0`, NET_CAP_ADMIN, SPAN-traffic + tcpreplay) | Future parser PR |
+| `tapirxl parse --output FILE`       | Small parser follow-up PR         |
+| Bounded concurrency (`max_in_flight > 1`) | FR §14 follow-up              |
+| `Idempotency-Key`                   | Pending BlueFlow team answer      |
 
 ---
 

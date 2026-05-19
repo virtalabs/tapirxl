@@ -1,0 +1,76 @@
+## InventoryRecord -> BlueFlow Asset translation.
+##
+## Single source of truth for the wire-shape mapping. Referenced verbatim
+## from both:
+##   - configs/upload-vector.toml       (prod / file-tail or stdin -> http sink)
+##   - configs/upload-vector.dryrun.toml (dev   / stdin -> console sink)
+##
+## Wire contract: tests/regression/golden_synthetic_philips_assets.jsonl.
+## See docs/ARCHITECTURE.md "Log shipper" section for the field mapping
+## rationale; see src/tapirxl/schemas/inventory.py for the source enums.
+##
+## Strict outbound shape: a fresh `out` object is built and assigned to `.`
+## so any unmapped source field is dropped at the transform boundary
+## (analog of pydantic `extra="forbid"`).
+
+# Source-shape normalization:
+#  - stdin source with `decoding.codec = "json"` lifts JSON fields to the
+#    event root: .mac_address, .ip_address, ... are directly addressable.
+#  - file source emits raw lines as `.message`. Parse here so downstream
+#    code is source-agnostic.
+if is_string(.message) {
+  . = parse_json!(string!(.message))
+}
+
+vendor_display = {
+  "intel":             "Intel",
+  "microsoft":         "Microsoft",
+  "paloaltonetworks":  "Palo Alto Networks",
+  "philips":           "Philips",
+  "vmware":            "VMware",
+}
+
+product_display = {
+  "brilliance_ict":                  "Brilliance iCT",
+  "clinical_collaboration_platform": "Clinical Collaboration Platform",
+  "intellivue_mx700":                "IntelliVue MX700",
+  "pan_os":                          "PAN-OS",
+  "windows_10":                      "Windows 10",
+  "windows_7":                       "Windows 7",
+  "windows_server":                  "Windows Server",
+}
+
+out = {}
+
+out.mac_address = string!(.mac_address)
+out.ip_address  = string!(.ip_address)
+
+if .hostname != null {
+  out.hostname = string!(.hostname)
+}
+
+if .vendor != null {
+  vendor_slug = string!(.vendor)
+  out.manufacturer = get(vendor_display, [vendor_slug]) ?? vendor_slug
+}
+
+if .product != null {
+  product_slug = string!(.product)
+  out.model = get(product_display, [product_slug]) ?? product_slug
+}
+
+if .version != null {
+  out.app_sw_version = string!(.version)
+}
+
+if .device_class != null {
+  out.category = string!(.device_class)
+}
+
+out.open_ports_tcp = array!(.open_ports)
+
+if .confidence != null {
+  out.external_keys = { "tapirxl_confidence": string!(.confidence) }
+}
+
+. = out
