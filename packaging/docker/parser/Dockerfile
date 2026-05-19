@@ -58,8 +58,5 @@ ENV PATH="/app/.venv/bin:${PATH}"
 # `tapirxl` is the canonical entrypoint (typer app at tapirxl.cli:app).
 # Demo invocation (one-shot):
 #   docker compose run --rm tapirxl-parser \
-#     sh -c 'tapirxl parse /pcap/foo.pcap --json >> /var/lib/tapirxl/inventory.jsonl'
-#
-# A `--output FILE` flag is a deferred follow-up (see plan T3.5); for
-# now the demo uses shell redirection inside the container.
+#     parse /pcap/foo.pcap --json --output /var/lib/tapirxl/inventory.jsonl
 ENTRYPOINT ["tapirxl"]

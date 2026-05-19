@@ -45,6 +45,34 @@ def _run_parse(extra_args: list[str]) -> bytes:
     return proc.stdout
 
 
+def _run_parse_to_file(out_path: Path, extra_args: list[str]) -> bytes:
+    """Invoke `tapirxl parse <fixture> --output <out_path> [extra]`.
+
+    Asserts stdout is empty (the --output contract) and returns the bytes
+    written to the file.
+    """
+    proc = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "tapirxl",
+            "parse",
+            str(FIXTURE_PCAP),
+            *extra_args,
+            "--output",
+            str(out_path),
+        ],
+        capture_output=True,
+        check=True,
+        cwd=REPO_ROOT,
+    )
+    assert proc.stdout == b"", (
+        "tapirxl parse --output must emit nothing on stdout (N6: stdout is the "
+        f"data contract). Got {len(proc.stdout)} bytes: {proc.stdout[:200]!r}"
+    )
+    return out_path.read_bytes()
+
+
 def _diff_message(golden_path: Path, actual: bytes, expected: bytes) -> str:
     """Build a helpful failure message naming the regeneration recipe."""
     return (
@@ -70,5 +98,25 @@ def test_golden_envelope_byte_identical() -> None:
 @pytest.mark.skipif(not GOLDEN_INVENTORY.exists(), reason=f"Golden missing: {GOLDEN_INVENTORY}")
 def test_golden_inventory_byte_identical() -> None:
     actual = _run_parse(["--json"])
+    expected = GOLDEN_INVENTORY.read_bytes()
+    assert actual == expected, _diff_message(GOLDEN_INVENTORY, actual, expected)
+
+
+@pytest.mark.skipif(not FIXTURE_PCAP.exists(), reason=f"Fixture PCAP missing: {FIXTURE_PCAP}")
+@pytest.mark.skipif(not GOLDEN_ENVELOPE.exists(), reason=f"Golden missing: {GOLDEN_ENVELOPE}")
+def test_golden_envelope_output_flag_byte_identical(tmp_path: Path) -> None:
+    """`--output PATH` writes the same bytes as the stdout path (HostEnvelope JSONL)."""
+    out_path = tmp_path / "envelope.jsonl"
+    actual = _run_parse_to_file(out_path, [])
+    expected = GOLDEN_ENVELOPE.read_bytes()
+    assert actual == expected, _diff_message(GOLDEN_ENVELOPE, actual, expected)
+
+
+@pytest.mark.skipif(not FIXTURE_PCAP.exists(), reason=f"Fixture PCAP missing: {FIXTURE_PCAP}")
+@pytest.mark.skipif(not GOLDEN_INVENTORY.exists(), reason=f"Golden missing: {GOLDEN_INVENTORY}")
+def test_golden_inventory_output_flag_byte_identical(tmp_path: Path) -> None:
+    """`--json --output PATH` writes the same bytes as the stdout path (InventoryRecord JSONL)."""
+    out_path = tmp_path / "inventory.jsonl"
+    actual = _run_parse_to_file(out_path, ["--json"])
     expected = GOLDEN_INVENTORY.read_bytes()
     assert actual == expected, _diff_message(GOLDEN_INVENTORY, actual, expected)

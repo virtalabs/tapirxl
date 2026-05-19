@@ -424,6 +424,11 @@ tapirxl parse <pcap> --json
 # Verbose: full HostEnvelope JSONL on stdout (one envelope per host)
 tapirxl parse <pcap>
 
+# Same output, written to PATH instead of stdout (stdout emits nothing;
+# stderr unchanged). Used by the containerized one-shot to avoid an
+# `sh -c '... >> file'` wrapper.
+tapirxl parse <pcap> --json --output /var/lib/tapirxl/inventory.jsonl
+
 # Regenerate the synthetic Philips demo PCAP
 tapirxl fixtures
 ```
@@ -547,9 +552,9 @@ defines two services:
 | `tapirxl-shipper:dev` | `/usr/bin/vector` | `/var/lib/tapirxl`, `/var/lib/vector/data` | vector upstream     | Long-running; tails inventory file |
 
 Both run non-root. The parser writes inventory JSONL to a shared volume; the
-shipper tails that file (or accepts stdin in dev). One-shot file output today
-uses shell redirection inside the parser container (`--entrypoint sh`); a
-native `tapirxl parse --output FILE` flag would remove that indirection.
+shipper tails that file (or accepts stdin in dev). The parser's
+`--output PATH` flag writes JSONL directly to the shared volume — no
+`--entrypoint sh` wrapper, no shell redirection.
 
 Required shipper env: `BLUEFLOW_URL`, `BLUEFLOW_TOKEN`. Optional:
 `TAPIRXL_INVENTORY_FILE`, `VECTOR_DATA_DIR`. See
