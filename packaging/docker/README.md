@@ -130,7 +130,7 @@ The unified image at `tapirxl:demo-dev` is the consolidation target for
 the demo compose in the separate demo repo. It bakes the parser, Vector
 binary, and both Vector configs
 ([`upload-vector.toml`](../../configs/upload-vector.toml) and
-[`upload-vector.pcap.toml`](../../configs/upload-vector.pcap.toml))
+[`upload-vector.stdin.toml`](../../configs/upload-vector.stdin.toml))
 into one container with a mode-switching entrypoint
 ([`demo/entrypoint.sh`](demo/entrypoint.sh)). Compared with the
 two-image Tier-1 layout above, it removes the inter-service shared volume
@@ -140,15 +140,15 @@ in favor of a direct in-container pipe.
 
 | `$TAPIRXL_MODE` | Behavior |
 | --- | --- |
-| `pcap` (default) | One-shot: `tapirxl parse $TAPIRXL_PCAP_PATH --json` piped to `vector --config-toml /etc/vector/upload-vector.pcap.toml` (stdin-only; clean shutdown on EOF); container exits when the pipeline drains. |
-| `live` | Stubbed; exits 64 with a message pointing at B1 (live-capture PR). Real implementation lands in B1. |
+| `pcap` (default) | One-shot: `tapirxl parse $TAPIRXL_PCAP_PATH --json` piped to `vector --config-toml /etc/vector/upload-vector.stdin.toml` (stdin-only; clean shutdown on EOF); container exits when the pipeline drains. |
+| `live` | Long-running: `tapirxl listen --interface $TAPIRXL_INTERFACE --json` piped to the same stdin Vector config. Requires `cap_add: [NET_ADMIN]` and a shared netns with traffic replay. Optional tuning: `TAPIRXL_INITIAL_EMIT_SECS`, `TAPIRXL_QUIESCENCE_SECS`, `TAPIRXL_HEARTBEAT_SECS`. |
 
 ### Three Vector configs (mode-aligned)
 
 | Config | Source | Sink | Used by |
 | --- | --- | --- | --- |
 | [`upload-vector.toml`](../../configs/upload-vector.toml) | `file` (tails `$TAPIRXL_INVENTORY_FILE`) | `http` → BlueFlow | Compose long-running (Tier-1 split above) |
-| [`upload-vector.pcap.toml`](../../configs/upload-vector.pcap.toml) | `stdin` | `http` → BlueFlow | Demo image `pcap` mode (this section) |
+| [`upload-vector.stdin.toml`](../../configs/upload-vector.stdin.toml) | `stdin` | `http` → BlueFlow | Demo image `pcap` + `live` modes (this section) |
 | [`upload-vector.dryrun.toml`](../../configs/upload-vector.dryrun.toml) | `stdin` | `console` (stdout) | Dev recipes / `test_demo_image.py` overlay |
 
 All three share [`upload-vector.vrl`](../../configs/upload-vector.vrl) for
@@ -163,6 +163,10 @@ one-shot pipe.
 | `BLUEFLOW_URL` | both | Base URL for the BlueFlow HTTP sink. |
 | `BLUEFLOW_TOKEN` | both | DRF token; sent as `Authorization: Token <hex>`. |
 | `TAPIRXL_PCAP_PATH` | `pcap` only | Path to the PCAP file inside the container (default `/pcap/synthetic_philips_demo.pcap`). |
+| `TAPIRXL_INTERFACE` | `live` only | Network interface for raw-socket capture (e.g. `eth0`). |
+| `TAPIRXL_INITIAL_EMIT_SECS` | `live` optional | Passed to `tapirxl listen --initial-emit-secs` (default `2`). |
+| `TAPIRXL_QUIESCENCE_SECS` | `live` optional | Passed to `tapirxl listen --quiescence-secs` (default `30`). |
+| `TAPIRXL_HEARTBEAT_SECS` | `live` optional | Passed to `tapirxl listen --heartbeat-secs` (default `300`). |
 | `VECTOR_DATA_DIR` | optional | Vector checkpoint + disk buffer location (default `/var/lib/vector/data`). |
 
 ### Recipes
@@ -174,7 +178,7 @@ uv run pytest tests/regression/test_demo_image.py             # byte-identical g
 ```
 
 `docker-dry-run-demo` mounts [`configs/upload-vector.dryrun.toml`](../../configs/upload-vector.dryrun.toml)
-over the baked-in pcap config at `/etc/vector/upload-vector.pcap.toml` so
+over the baked-in stdin config at `/etc/vector/upload-vector.stdin.toml` so
 Vector writes translated `AssetUpsertPayload` JSONL to stdout instead of
 PUTting to BlueFlow. No socket is opened.
 

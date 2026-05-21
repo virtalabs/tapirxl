@@ -1,10 +1,10 @@
-# TapirXL BlueFlow upload pipeline — one-shot pcap variant.
+# TapirXL BlueFlow upload pipeline — stdin variant.
 #
-# Used by the unified demo image (packaging/docker/demo/Dockerfile) when
-# TAPIRXL_MODE=pcap. The parser pipes InventoryRecord JSONL on stdin; Vector
-# translates with the shared VRL and PUTs to BlueFlow's /api/assets/upsert/.
-# Vector exits cleanly when stdin reaches EOF — no file source, so the
-# topology shuts down once the parser finishes and the http sink drains.
+# Used by the unified demo image (packaging/docker/demo/Dockerfile) for
+# TAPIRXL_MODE=pcap and TAPIRXL_MODE=live. The parser pipes InventoryRecord
+# JSONL on stdin; Vector translates with the shared VRL and PUTs to BlueFlow's
+# /api/assets/upsert/. Vector exits cleanly when stdin reaches EOF in pcap
+# mode; in live mode stdin stays open until the parser exits.
 #
 # Sibling configs:
 #   configs/upload-vector.toml         compose long-running (file source)
