@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from collections import defaultdict
 from pathlib import Path
 
 import pytest
@@ -26,14 +27,16 @@ def _load_golden_by_mac(path: Path, *, key: str) -> dict[str, dict]:
     return {row[key]: row for row in rows}
 
 
-def _last_emission_by_mac(emitter: LiveEmitter, *, inventory: bool) -> dict[str, dict]:
+def _last_emission_by_mac(
+    emissions_by_mac: dict[str, list[str]],
+    *,
+    lookup_key: str,
+) -> dict[str, dict]:
     by_mac: dict[str, dict] = {}
-    for _mac, state in emitter.hosts.items():
-        if not state.emissions:
+    for lines in emissions_by_mac.values():
+        if not lines:
             continue
-        line = state.emissions[-1]
-        obj = json.loads(line)
-        lookup_key = "mac_address" if inventory else "host_id"
+        obj = json.loads(lines[-1])
         by_mac[obj[lookup_key]] = obj
     return by_mac
 
@@ -70,9 +73,14 @@ def test_live_final_drain_envelope_matches_golden() -> None:
     )
 
     clock = {"now": 0.0}
+    emissions_by_mac: dict[str, list[str]] = defaultdict(list)
 
     def _now() -> float:
         return clock["now"]
+
+    def _on_emit(line: str) -> None:
+        obj = json.loads(line)
+        emissions_by_mac[obj["host_id"]].append(line)
 
     emitter = LiveEmitter(
         oui_table,
@@ -80,6 +88,7 @@ def test_live_final_drain_envelope_matches_golden() -> None:
         quiescence_secs=1.0,
         heartbeat_secs=99999.0,
         emit_inventory=False,
+        on_emit=_on_emit,
         clock=_now,
     )
 
@@ -93,10 +102,10 @@ def test_live_final_drain_envelope_matches_golden() -> None:
     emitter.process_due_events()
     emitter.drain()
 
-    for state in emitter.hosts.values():
-        _monotonic_signal_counts(state.emissions)
+    for lines in emissions_by_mac.values():
+        _monotonic_signal_counts(lines)
 
-    actual = _last_emission_by_mac(emitter, inventory=False)
+    actual = _last_emission_by_mac(emissions_by_mac, lookup_key="host_id")
     expected = _load_golden_by_mac(GOLDEN_ENVELOPE, key="host_id")
     assert set(actual) == set(expected)
     for mac in expected:
@@ -113,9 +122,14 @@ def test_live_final_drain_inventory_matches_golden() -> None:
     )
 
     clock = {"now": 0.0}
+    emissions_by_mac: dict[str, list[str]] = defaultdict(list)
 
     def _now() -> float:
         return clock["now"]
+
+    def _on_emit(line: str) -> None:
+        obj = json.loads(line)
+        emissions_by_mac[obj["mac_address"]].append(line)
 
     emitter = LiveEmitter(
         oui_table,
@@ -123,6 +137,7 @@ def test_live_final_drain_inventory_matches_golden() -> None:
         quiescence_secs=1.0,
         heartbeat_secs=99999.0,
         emit_inventory=True,
+        on_emit=_on_emit,
         clock=_now,
     )
 
@@ -136,10 +151,10 @@ def test_live_final_drain_inventory_matches_golden() -> None:
     emitter.process_due_events()
     emitter.drain()
 
-    for state in emitter.hosts.values():
-        _monotonic_signal_counts(state.emissions)
+    for lines in emissions_by_mac.values():
+        _monotonic_signal_counts(lines)
 
-    actual = _last_emission_by_mac(emitter, inventory=True)
+    actual = _last_emission_by_mac(emissions_by_mac, lookup_key="mac_address")
     expected = _load_golden_by_mac(GOLDEN_INVENTORY, key="mac_address")
     assert set(actual) == set(expected)
     for mac in expected:
