@@ -88,3 +88,9 @@ jobs:
             tests/integration/test_phase1_smoke.py \
             tests/regression/test_demo_image.py \
             -v --tb=short
+
+      - name: Install tcpreplay
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tcpreplay
+
+      - name: Live-mode smoke (tcpreplay → demo image live → stub BlueFlow)
+        run: uv run pytest tests/integration/test_phase1_live_smoke.py -v --tb=short
