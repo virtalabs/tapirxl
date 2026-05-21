@@ -26,7 +26,9 @@ DEMO_IMAGE_TAG = "tapirxl:demo-dev"
 SMOKE_TOKEN = "smoke-token"
 EXPECTED_MAC_COUNT = 8
 CONTAINER_NAME = "tapirxl-live-smoke-test"
+LISTENER_READY = "Live capture ready on lo"
 POLL_TIMEOUT_SECS = 90.0
+LISTENER_READY_TIMEOUT_SECS = 120.0
 
 
 def _docker_daemon_available() -> bool:
@@ -69,6 +71,28 @@ def _golden_payloads_by_mac() -> dict[str, dict]:
     return {p["mac_address"]: p for p in payloads}
 
 
+def _container_logs() -> str:
+    proc = subprocess.run(
+        ["docker", "logs", CONTAINER_NAME],
+        capture_output=True,
+        check=False,
+        timeout=30,
+    )
+    stdout = proc.stdout.decode(errors="replace")
+    stderr = proc.stderr.decode(errors="replace")
+    return f"{stdout}{stderr}".strip()
+
+
+def _container_is_running() -> bool:
+    proc = subprocess.run(
+        ["docker", "inspect", "-f", "{{.State.Running}}", CONTAINER_NAME],
+        capture_output=True,
+        check=False,
+        timeout=10,
+    )
+    return proc.returncode == 0 and proc.stdout.decode().strip() == "true"
+
+
 def _stop_container() -> None:
     subprocess.run(
         ["docker", "rm", "-f", CONTAINER_NAME],
@@ -89,6 +113,7 @@ def _start_live_container(*, port: int) -> None:
             CONTAINER_NAME,
             "--network=host",
             "--cap-add=NET_ADMIN",
+            "--cap-add=NET_RAW",
             "-e",
             "TAPIRXL_MODE=live",
             "-e",
@@ -110,13 +135,39 @@ def _start_live_container(*, port: int) -> None:
     assert proc.returncode == 0, proc.stderr.decode(errors="replace")
 
 
-def _replay_pcap() -> None:
+def _wait_for_listener_ready() -> None:
+    deadline = time.monotonic() + LISTENER_READY_TIMEOUT_SECS
+    while time.monotonic() < deadline:
+        if not _container_is_running():
+            raise AssertionError(
+                f"Demo container exited before live capture was ready.\n{_container_logs()}"
+            )
+        if LISTENER_READY in _container_logs():
+            return
+        time.sleep(0.5)
+    raise AssertionError(
+        f"Timed out waiting for live capture on lo after {LISTENER_READY_TIMEOUT_SECS}s.\n"
+        f"{_container_logs()}"
+    )
+
+
+def _replay_pcap(*, loops: int = 3) -> None:
     """Replay the fixture onto ``lo``.
 
     tcpreplay needs CAP_NET_RAW on the host. CI runners and most dev machines
     are unprivileged; passwordless ``sudo`` (GHA ubuntu-latest) satisfies that.
+
+    Multiple loops give the listener time to finish pyshark/tshark startup
+    without missing the only replay window.
     """
-    base = ["tcpreplay", "--intf1=lo", "--quiet", str(FIXTURE_PCAP)]
+    base = [
+        "tcpreplay",
+        "--intf1=lo",
+        "--quiet",
+        f"--loop={loops}",
+        "--loopdelay=500",
+        str(FIXTURE_PCAP),
+    ]
     if os.geteuid() != 0 and shutil.which("sudo") is not None:
         cmd = ["sudo", "-n", *base]
     else:
@@ -137,7 +188,8 @@ def _wait_for_puts(stub: BlueFlowStub, *, count: int) -> None:
             return
         time.sleep(0.5)
     raise AssertionError(
-        f"Timed out waiting for {count} PUTs; got {len(stub.received)} after {POLL_TIMEOUT_SECS}s"
+        f"Timed out waiting for {count} PUTs; got {len(stub.received)} after "
+        f"{POLL_TIMEOUT_SECS}s.\nContainer logs:\n{_container_logs()}"
     )
 
 
@@ -158,7 +210,7 @@ def test_phase2_live_demo_image_upserts_against_stub_blueflow() -> None:
     port = stub.start()
     try:
         _start_live_container(port=port)
-        time.sleep(2.0)
+        _wait_for_listener_ready()
         _replay_pcap()
         _wait_for_puts(stub, count=EXPECTED_MAC_COUNT)
 

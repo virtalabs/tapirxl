@@ -27,6 +27,7 @@ def iter_live_records(interface: str, oui_table: dict[str, str]) -> Iterator[dic
             keep_packets=False,
             eventloop=pkt_loop,
         )
+        print(f"Live capture ready on {interface}", file=sys.stderr, flush=True)
         for packet in cap.sniff_continuously():
             pkt_count += 1
             if pkt_count % 5000 == 0:

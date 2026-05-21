@@ -69,6 +69,7 @@ RUN chmod +x /usr/local/bin/tapirxl-demo-entrypoint
 # Non-root user, uid 10001 matches packaging/docker/parser/Dockerfile so a
 # bind-mounted shared volume works without uid surgery.
 RUN useradd --system --uid 10001 --shell /usr/sbin/nologin tapirxl \
+ && usermod -aG wireshark tapirxl \
  && mkdir -p /var/lib/vector/data /pcap \
  && chown -R tapirxl:tapirxl /var/lib/vector
 
