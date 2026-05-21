@@ -81,7 +81,7 @@ def _drain_live_queue(
         except queue.Empty:
             if on_idle is not None:
                 on_idle()
-            if shutdown_event.is_set() and not thread.is_alive():
+            if shutdown_event.is_set():
                 break
             continue
         if item is None:
@@ -122,6 +122,6 @@ def iter_live_records_threaded(
         )
     finally:
         shutdown_event.set()
-        thread.join(timeout=5.0)
+        thread.join(timeout=1.0)
         if error_holder:
             raise error_holder[0]
