@@ -19,7 +19,6 @@ from tapirxl.parser.envelope_builder import (
 )
 from tapirxl.parser.triage import contradiction_scan, route_host
 
-
 # MACs that are never a real asset and must be dropped before envelope creation.
 # The all-zero MAC appears on Linux loopback (lo has no hardware address) and
 # is the only artifact distinguishing live capture from PCAP file capture for
