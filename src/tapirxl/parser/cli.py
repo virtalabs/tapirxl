@@ -14,23 +14,11 @@ previously relied on shell redirection.
 from __future__ import annotations
 
 import contextlib
-import json
 import sys
 from pathlib import Path
 
+from tapirxl.parser.emit import render_envelope
 from tapirxl.parser.pipeline import run
-
-
-def _render(env: object, *, emit_inventory: bool) -> str:
-    """Serialize a single runtime envelope to its JSONL line (no trailing newline)."""
-    if emit_inventory:
-        from tapirxl.core.inventory_record import build_jsonl_record
-
-        return json.dumps(build_jsonl_record(env, fused=None, no_llm=True), default=str)
-
-    from tapirxl.parser.serialize import to_envelope
-
-    return to_envelope(env).model_dump_json()
 
 
 def main(
@@ -49,7 +37,7 @@ def main(
     try:
         target_fp = sink_fp if sink_fp is not None else real_stdout
         for env in envelopes:
-            print(_render(env, emit_inventory=emit_inventory), file=target_fp)
+            print(render_envelope(env, emit_inventory=emit_inventory), file=target_fp)
             target_fp.flush()
     finally:
         if sink_fp is not None:

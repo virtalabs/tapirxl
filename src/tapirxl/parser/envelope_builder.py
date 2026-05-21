@@ -70,8 +70,16 @@ def finalize_envelope_timestamps(envelope: dict) -> None:
     ts_all = envelope.pop("_pkt_ts", [])
     envelope.pop("_seen_ts", None)
     if ts_all:
-        envelope["first_seen_ts"] = min(ts_all)
-        envelope["last_seen_ts"] = max(ts_all)
+        new_first = min(ts_all)
+        new_last = max(ts_all)
+        if "first_seen_ts" in envelope:
+            envelope["first_seen_ts"] = min(envelope["first_seen_ts"], new_first)
+        else:
+            envelope["first_seen_ts"] = new_first
+        if "last_seen_ts" in envelope:
+            envelope["last_seen_ts"] = max(envelope["last_seen_ts"], new_last)
+        else:
+            envelope["last_seen_ts"] = new_last
 
 
 def _uniq_append(env: dict, lst_key: str, value: object) -> None:
