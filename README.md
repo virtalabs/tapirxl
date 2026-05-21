@@ -1,6 +1,6 @@
 # TapirXL
 
-> Passive medical-device identification from PCAP files
+> Passive medical-device identification from PCAP files and live network interfaces
 
 TapirXL reads a network capture and produces a structured asset inventory of
 medical devices on the wire — with no active probing, no packet injection, and
@@ -41,6 +41,9 @@ just parse-verbose pcap/your.pcap
 
 # Pipe into jq
 just parse pcap/your.pcap | jq .
+
+# Live capture on an interface (requires privileges / CAP_NET_ADMIN in containers)
+tapirxl listen --interface eth0 --json
 ```
 
 ### Generate the synthetic demo fixture
