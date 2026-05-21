@@ -7,6 +7,7 @@ Replays the synthetic fixture onto ``lo`` while the demo image listens in
 from __future__ import annotations
 
 import json
+import os
 import shutil
 import subprocess
 import sys
@@ -110,13 +111,18 @@ def _start_live_container(*, port: int) -> None:
 
 
 def _replay_pcap() -> None:
+    """Replay the fixture onto ``lo``.
+
+    tcpreplay needs CAP_NET_RAW on the host. CI runners and most dev machines
+    are unprivileged; passwordless ``sudo`` (GHA ubuntu-latest) satisfies that.
+    """
+    base = ["tcpreplay", "--intf1=lo", "--quiet", str(FIXTURE_PCAP)]
+    if os.geteuid() != 0 and shutil.which("sudo") is not None:
+        cmd = ["sudo", "-n", *base]
+    else:
+        cmd = base
     proc = subprocess.run(
-        [
-            "tcpreplay",
-            "--intf1=lo",
-            "--quiet",
-            str(FIXTURE_PCAP),
-        ],
+        cmd,
         capture_output=True,
         check=False,
         timeout=120,
