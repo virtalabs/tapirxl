@@ -142,3 +142,49 @@ def test_accumulates_signals_across_emissions() -> None:
 
     second_env = emitter.hosts[normalize_mac(mac)].envelope
     assert second_env.get("signal_count", 0) >= first_count
+
+
+def test_heartbeat_not_duplicated_after_quiescence_emit() -> None:
+    """Regression: a quiescence-driven emit must not stack a second heartbeat.
+
+    Bug: prior to this test, scheduling a fresh heartbeat in the quiescence
+    branch without cancelling the existing one caused the heap to retain two
+    heartbeats per host forever, so the effective cadence was ~quiescence_secs
+    faster than the configured heartbeat_secs.
+    """
+    clock, advance = _fake_clock()
+    lines: list[str] = []
+    mac = "aa:bb:cc:dd:ee:06"
+    emitter = LiveEmitter(
+        {},
+        initial_emit_secs=2.0,
+        quiescence_secs=30.0,
+        heartbeat_secs=300.0,
+        emit_inventory=True,
+        on_emit=lines.append,
+        clock=clock,
+    )
+
+    emitter.ingest_record(_record(mac, ts=0.0))
+    advance(2.0)
+    emitter.process_due_events()
+    assert len(lines) == 1
+
+    advance(3.0)
+    emitter.ingest_record(_record(mac, ts=5.0, proto="MDNS_A"))
+    advance(30.0)
+    emitter.process_due_events()
+    assert len(lines) == 2
+
+    pending_heartbeats = sum(1 for _d, _s, _m, r in emitter._deadlines if r == "heartbeat")
+    assert pending_heartbeats == 1, (
+        f"Expected exactly one pending heartbeat per host, got {pending_heartbeats}"
+    )
+
+    advance(1000.0)
+    emitter.process_due_events()
+    extra = len(lines) - 2
+    assert extra <= 4, (
+        f"Heartbeat cadence violated: {extra} heartbeat emits in 1000s "
+        f"with heartbeat_secs=300 (expected at most 4)"
+    )

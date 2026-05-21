@@ -77,6 +77,10 @@ class LiveEmitter:
         ]
         heapq.heapify(self._deadlines)
 
+    def _arm_heartbeat(self, mac: str) -> None:
+        self._cancel_reasons(mac, {"heartbeat"})
+        self._schedule(mac, self.now() + self.heartbeat_secs, "heartbeat")
+
     def ingest_record(self, record: dict[str, Any]) -> None:
         mac = normalize_mac(record.get("src_mac") or "")
         if not mac:
@@ -114,14 +118,14 @@ class LiveEmitter:
                 self._emit(mac, state)
                 state.phase = HostPhase.STABLE
                 self._schedule(mac, self.now() + self.quiescence_secs, "quiescence")
-                self._schedule(mac, self.now() + self.heartbeat_secs, "heartbeat")
+                self._arm_heartbeat(mac)
             elif reason == "quiescence" and state.phase is HostPhase.STABLE:
                 if state.dirty_since_emit:
                     self._emit(mac, state)
-                    self._schedule(mac, self.now() + self.heartbeat_secs, "heartbeat")
+                    self._arm_heartbeat(mac)
             elif reason == "heartbeat" and state.phase is HostPhase.STABLE:
                 self._emit(mac, state)
-                self._schedule(mac, self.now() + self.heartbeat_secs, "heartbeat")
+                self._arm_heartbeat(mac)
 
     def drain(self) -> None:
         for mac, state in self.hosts.items():
