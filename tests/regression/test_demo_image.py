@@ -90,7 +90,7 @@ def test_demo_image_byte_identical() -> None:
             "run",
             "--rm",
             "-v",
-            f"{DRYRUN_CONFIG.resolve()}:/etc/vector/upload-vector.pcap.toml:ro",
+            f"{DRYRUN_CONFIG.resolve()}:/etc/vector/upload-vector.stdin.toml:ro",
             "-v",
             f"{fixtures_dir}:/pcap:ro",
             "-e",
@@ -114,12 +114,8 @@ def test_demo_image_byte_identical() -> None:
 
 @pytest.mark.skipif(not _docker_daemon_available(), reason="docker daemon not reachable")
 @pytest.mark.skipif(not DEMO_DOCKERFILE.exists(), reason=f"Missing: {DEMO_DOCKERFILE}")
-def test_demo_image_live_mode_stubbed() -> None:
-    """`TAPIRXL_MODE=live` exits 64 with a B1 pointer; pcap-mode contract preserved.
-
-    Guards N1: the demo image must not accidentally start a half-implemented live
-    listener. The stub is the binding promise that B1 is the right next PR.
-    """
+def test_demo_image_live_mode_requires_interface() -> None:
+    """``TAPIRXL_MODE=live`` requires ``TAPIRXL_INTERFACE``; fails fast without it."""
     proc = subprocess.run(
         [
             "docker",
@@ -137,10 +133,11 @@ def test_demo_image_live_mode_stubbed() -> None:
         check=False,
         timeout=30,
     )
-    assert proc.returncode == 64, (
-        f"Expected exit 64 for live-mode stub, got {proc.returncode}. "
+    assert proc.returncode != 0, (
+        f"Expected non-zero exit when TAPIRXL_INTERFACE is missing, got {proc.returncode}. "
         f"stderr: {proc.stderr.decode(errors='replace')!r}"
     )
-    assert b"B1" in proc.stderr, (
-        f"Expected B1 reference in stderr, got: {proc.stderr.decode(errors='replace')!r}"
+    assert b"TAPIRXL_INTERFACE" in proc.stderr, (
+        f"Expected TAPIRXL_INTERFACE requirement in stderr, got: "
+        f"{proc.stderr.decode(errors='replace')!r}"
     )

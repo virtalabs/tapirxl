@@ -8,12 +8,12 @@
 ## Contract (see packaging/docker/README.md "Unified demo image"):
 ##   TAPIRXL_MODE=pcap (default)
 ##     -> tapirxl parse $TAPIRXL_PCAP_PATH --json
-##        | vector --config-toml /etc/vector/upload-vector.pcap.toml
+##        | vector --config-toml /etc/vector/upload-vector.stdin.toml
 ##     One-shot; container exits when the parser finishes and Vector drains.
-##     Uses the stdin-only pcap config so the topology shuts down on EOF
-##     instead of waiting on a phantom file source.
 ##   TAPIRXL_MODE=live
-##     -> Stubbed; exits 64 with a message pointing at B1 (live-capture PR).
+##     -> tapirxl listen --interface $TAPIRXL_INTERFACE --json
+##        | vector --config-toml /etc/vector/upload-vector.stdin.toml
+##     Long-running raw-socket capture on the shared netns interface.
 ##
 ## Version pin: the Vector binary version MUST match
 ## packaging/docker/vector/Dockerfile (currently 0.55.0-debian). Byte-identical
@@ -53,12 +53,12 @@ RUN uv sync --frozen --no-dev
 
 # Bake the canonical Vector configs + shared VRL.
 #   upload-vector.toml       compose long-running (file source)
-#   upload-vector.pcap.toml  demo one-shot (stdin -> EOF -> clean shutdown)
+#   upload-vector.stdin.toml  demo stdin pipeline (pcap + live modes)
 # Demo compose can layer in a bind-mount override at either path without
 # rebuilding (tests/regression/test_demo_image.py mounts the dryrun config
-# over upload-vector.toml to verify byte equality).
-COPY configs/upload-vector.toml       /etc/vector/upload-vector.toml
-COPY configs/upload-vector.pcap.toml  /etc/vector/upload-vector.pcap.toml
+# over upload-vector.stdin.toml to verify byte equality).
+COPY configs/upload-vector.toml        /etc/vector/upload-vector.toml
+COPY configs/upload-vector.stdin.toml  /etc/vector/upload-vector.stdin.toml
 COPY configs/upload-vector.vrl        /etc/vector/upload-vector.vrl
 ENV UPLOAD_VECTOR_VRL_PATH=/etc/vector/upload-vector.vrl
 
