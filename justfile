@@ -30,6 +30,10 @@ fixture:
 parse PCAP:
     uv run tapirxl parse {{PCAP}} --json
 
+# Live capture → InventoryRecord JSONL on stdout
+listen INTERFACE:
+    uv run tapirxl listen --interface {{INTERFACE}} --json
+
 # Parse PCAP → full HostEnvelope JSONL (raw deterministic shape, all pipeline blocks)
 parse-verbose PCAP:
     uv run tapirxl parse {{PCAP}}
@@ -60,7 +64,7 @@ vector-validate:
     export TAPIRXL_INVENTORY_FILE="${TAPIRXL_INVENTORY_FILE:-/var/lib/tapirxl/inventory.jsonl}"
     mkdir -p "$VECTOR_DATA_DIR"
     vector validate configs/upload-vector.toml
-    vector validate configs/upload-vector.pcap.toml
+    vector validate configs/upload-vector.stdin.toml
     vector validate configs/upload-vector.dryrun.toml
 
 # Run the inline [[tests]] stanzas in configs/upload-vector.tests.toml.
@@ -120,8 +124,8 @@ docker-build-demo:
 
 # Containerized dry-run of the unified demo image.
 #
-# Mounts configs/upload-vector.dryrun.toml over the baked-in pcap config at
-# /etc/vector/upload-vector.pcap.toml so Vector writes translated
+# Mounts configs/upload-vector.dryrun.toml over the baked-in stdin config at
+# /etc/vector/upload-vector.stdin.toml so Vector writes translated
 # AssetUpsertPayload JSONL to stdout instead of PUTting to BlueFlow. No
 # socket is opened; stub BLUEFLOW_URL / BLUEFLOW_TOKEN satisfy the
 # entrypoint's required-env checks without leaving the container.
@@ -132,7 +136,7 @@ docker-dry-run-demo PCAP:
     PCAP_DIR=$(dirname "$PCAP_ABS")
     PCAP_FILE=$(basename "$PCAP_ABS")
     docker run --rm \
-        -v "$(pwd)/configs/upload-vector.dryrun.toml:/etc/vector/upload-vector.pcap.toml:ro" \
+        -v "$(pwd)/configs/upload-vector.dryrun.toml:/etc/vector/upload-vector.stdin.toml:ro" \
         -v "$PCAP_DIR:/pcap:ro" \
         -e TAPIRXL_MODE=pcap \
         -e TAPIRXL_PCAP_PATH="/pcap/$PCAP_FILE" \
