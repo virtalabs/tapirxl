@@ -27,7 +27,13 @@ FROM timberio/vector:0.55.0-debian AS vector_stage
 FROM python:3.14-slim-bookworm AS demo
 
 ENV DEBIAN_FRONTEND=noninteractive
-RUN apt-get update \
+# Pre-seed wireshark-common so its postinst creates the `wireshark` group
+# and applies setcap cap_net_raw,cap_net_admin+eip to dumpcap. Without this,
+# tshark with --no-install-recommends installs but cannot capture as a
+# non-root user, and the group does not exist for usermod -aG below.
+RUN echo "wireshark-common wireshark-common/install-setuid boolean true" \
+      | debconf-set-selections \
+ && apt-get update \
  && apt-get install -y --no-install-recommends tshark ca-certificates tini \
  && rm -rf /var/lib/apt/lists/*
 
