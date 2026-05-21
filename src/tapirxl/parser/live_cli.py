@@ -40,43 +40,44 @@ def run_listen(
     oui_table = load_oui_table(Path.cwd() / "static" / "ieee_oui.txt")
 
     sink_fp: TextIO | None = None
-    if output is not None:
-        sink_fp = open(output, "w", encoding="utf-8", newline="\n")
+    try:
+        if output is not None:
+            sink_fp = open(output, "w", encoding="utf-8", newline="\n")
 
-    def _write_line(line: str) -> None:
-        target = sink_fp if sink_fp is not None else real_stdout
-        print(line, file=target)
-        target.flush()
+        def _write_line(line: str) -> None:
+            target = sink_fp if sink_fp is not None else real_stdout
+            print(line, file=target)
+            target.flush()
 
-    emitter = LiveEmitter(
-        oui_table,
-        initial_emit_secs=initial_emit_secs,
-        quiescence_secs=quiescence_secs,
-        heartbeat_secs=heartbeat_secs,
-        emit_inventory=emit_inventory,
-        on_emit=_write_line,
-    )
-
-    def _process_idle() -> None:
-        emitter.process_due_events()
-
-    with contextlib.redirect_stdout(sys.stderr):
-        for record in iter_live_records_threaded(
-            interface,
+        emitter = LiveEmitter(
             oui_table,
-            shutdown_event=_SHUTDOWN,
-            on_idle=_process_idle,
-        ):
-            emitter.ingest_record(record)
+            initial_emit_secs=initial_emit_secs,
+            quiescence_secs=quiescence_secs,
+            heartbeat_secs=heartbeat_secs,
+            emit_inventory=emit_inventory,
+            on_emit=_write_line,
+        )
+
+        def _process_idle() -> None:
             emitter.process_due_events()
-            if _SHUTDOWN.is_set():
-                break
 
-    emitter.process_due_events()
-    emitter.drain()
+        with contextlib.redirect_stdout(sys.stderr):
+            for record in iter_live_records_threaded(
+                interface,
+                oui_table,
+                shutdown_event=_SHUTDOWN,
+                on_idle=_process_idle,
+            ):
+                emitter.ingest_record(record)
+                emitter.process_due_events()
+                if _SHUTDOWN.is_set():
+                    break
 
-    if sink_fp is not None:
-        sink_fp.close()
+        emitter.process_due_events()
+        emitter.drain()
+    finally:
+        if sink_fp is not None:
+            sink_fp.close()
 
 
 def build_arg_parser() -> argparse.ArgumentParser:

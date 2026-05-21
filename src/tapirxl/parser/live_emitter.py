@@ -5,7 +5,7 @@ from __future__ import annotations
 import heapq
 import time
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from enum import Enum
 from typing import Any
 
@@ -32,7 +32,6 @@ class HostState:
     last_signal_at: float
     last_emit_at: float | None = None
     dirty_since_emit: bool = False
-    emissions: list[str] = field(default_factory=list)
 
 
 class LiveEmitter:
@@ -60,7 +59,6 @@ class LiveEmitter:
         self.hosts: dict[str, HostState] = {}
         self._deadlines: list[tuple[float, int, str, str]] = []
         self._seq = 0
-        self.emitted_lines: list[str] = []
 
     def now(self) -> float:
         return self._clock()
@@ -146,8 +144,6 @@ class LiveEmitter:
         postprocess_pipeline_labels(env)
         route_host(env)
         line = render_envelope(env, emit_inventory=self.emit_inventory)
-        state.emissions.append(line)
-        self.emitted_lines.append(line)
         state.last_emit_at = self.now()
         state.dirty_since_emit = False
         self._on_emit(line)
