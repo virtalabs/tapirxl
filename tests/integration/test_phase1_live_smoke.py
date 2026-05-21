@@ -151,23 +151,28 @@ def _wait_for_listener_ready() -> None:
     )
 
 
-def _replay_pcap(*, loops: int = 3) -> None:
+def _replay_pcap(*, loops: int = 20) -> None:
     """Replay the fixture onto ``lo`` at top speed (timestamps ignored).
 
     tcpreplay needs CAP_NET_RAW on the host. CI runners and most dev machines
     are unprivileged; passwordless ``sudo`` (GHA ubuntu-latest) satisfies that.
 
-    Multiple loops give the listener time to finish pyshark/tshark startup
-    without missing the only replay window. ``--topspeed`` is essential —
-    without it, tcpreplay honors the original PCAP timestamps and three
-    loops can easily exceed the test's wallclock budget.
+    ``pyshark.LiveCapture(...)`` is a lazy constructor — the actual ``tshark``
+    subprocess does not spawn until ``sniff_continuously()`` starts iterating,
+    which can lag the "Live capture ready" banner by hundreds of ms. Looping
+    over a multi-second window with ``--loopdelay-ms`` ensures tshark has at
+    least one window where it is genuinely capturing while traffic is flowing.
+
+    ``--preload-pcap`` keeps the fixture in RAM so per-loop overhead is tiny.
     """
     base = [
         "tcpreplay",
         "--intf1=lo",
         "--quiet",
         "--topspeed",
+        "--preload-pcap",
         f"--loop={loops}",
+        "--loopdelay-ms=200",
         str(FIXTURE_PCAP),
     ]
     if os.geteuid() != 0 and shutil.which("sudo") is not None:
@@ -213,6 +218,11 @@ def test_phase2_live_demo_image_upserts_against_stub_blueflow() -> None:
     try:
         _start_live_container(port=port)
         _wait_for_listener_ready()
+        # Give pyshark a beat to actually spawn tshark/dumpcap before we start
+        # replaying. The "Live capture ready" banner only confirms that the
+        # Python LiveCapture wrapper was constructed, not that any subprocess
+        # is yet bound to lo.
+        time.sleep(3.0)
         _replay_pcap()
         _wait_for_puts(stub, count=EXPECTED_MAC_COUNT)
 

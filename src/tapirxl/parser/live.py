@@ -26,9 +26,21 @@ def iter_live_records(interface: str, oui_table: dict[str, str]) -> Iterator[dic
             display_filter=DISPLAY_FILTER,
             eventloop=pkt_loop,
         )
+        # NOTE: pyshark.LiveCapture(...) is a lazy constructor — tshark and
+        # dumpcap are not spawned until sniff_continuously() begins iterating.
+        # This banner therefore signals "wrapper constructed", not "interface
+        # bound". A second banner fires below on the first captured packet so
+        # production operators can distinguish startup latency from a silent
+        # interface.
         print(f"Live capture ready on {interface}", file=sys.stderr, flush=True)
         for packet in cap.sniff_continuously():
             pkt_count += 1
+            if pkt_count == 1:
+                print(
+                    f"Live capture receiving packets on {interface}",
+                    file=sys.stderr,
+                    flush=True,
+                )
             if pkt_count % 5000 == 0:
                 print(
                     f"\r  {pkt_count} packets scanned (live)...",
