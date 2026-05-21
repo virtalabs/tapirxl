@@ -144,6 +144,32 @@ def test_accumulates_signals_across_emissions() -> None:
     assert second_env.get("signal_count", 0) >= first_count
 
 
+def test_zero_mac_loopback_traffic_is_dropped() -> None:
+    """Live capture on Linux ``lo`` surfaces zero-MAC packets; never emit them.
+
+    Regression: the live integration smoke saw 9 hosts (8 synthetic + the
+    loopback interface itself) because the all-zero MAC has no hardware
+    address. The emitter must filter it before envelope creation so the
+    live and pcap paths agree on the same MAC set.
+    """
+    clock, _advance = _fake_clock()
+    lines: list[str] = []
+    emitter = LiveEmitter(
+        {},
+        initial_emit_secs=0.0,
+        emit_inventory=True,
+        on_emit=lines.append,
+        clock=clock,
+    )
+
+    emitter.ingest_record(_record("00:00:00:00:00:00", ts=0.0))
+    emitter.process_due_events()
+    emitter.drain()
+
+    assert lines == []
+    assert "00:00:00:00:00:00" not in emitter.hosts
+
+
 def test_heartbeat_not_duplicated_after_quiescence_emit() -> None:
     """Regression: a quiescence-driven emit must not stack a second heartbeat.
 
