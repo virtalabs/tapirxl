@@ -152,20 +152,22 @@ def _wait_for_listener_ready() -> None:
 
 
 def _replay_pcap(*, loops: int = 3) -> None:
-    """Replay the fixture onto ``lo``.
+    """Replay the fixture onto ``lo`` at top speed (timestamps ignored).
 
     tcpreplay needs CAP_NET_RAW on the host. CI runners and most dev machines
     are unprivileged; passwordless ``sudo`` (GHA ubuntu-latest) satisfies that.
 
     Multiple loops give the listener time to finish pyshark/tshark startup
-    without missing the only replay window.
+    without missing the only replay window. ``--topspeed`` is essential —
+    without it, tcpreplay honors the original PCAP timestamps and three
+    loops can easily exceed the test's wallclock budget.
     """
     base = [
         "tcpreplay",
         "--intf1=lo",
         "--quiet",
+        "--topspeed",
         f"--loop={loops}",
-        "--loopdelay=500",
         str(FIXTURE_PCAP),
     ]
     if os.geteuid() != 0 and shutil.which("sudo") is not None:
