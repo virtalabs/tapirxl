@@ -24,7 +24,6 @@ def iter_live_records(interface: str, oui_table: dict[str, str]) -> Iterator[dic
         cap = pyshark.LiveCapture(
             interface=interface,
             display_filter=DISPLAY_FILTER,
-            keep_packets=False,
             eventloop=pkt_loop,
         )
         print(f"Live capture ready on {interface}", file=sys.stderr, flush=True)
