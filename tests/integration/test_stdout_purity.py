@@ -9,6 +9,7 @@ third-party library noise.
 from __future__ import annotations
 
 import json
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -70,3 +71,27 @@ class TestParseStdoutPurity:
         assert "packets scanned" in stderr, (
             "Pipeline summary missing from stderr; expected progress reporting there"
         )
+
+
+def _run_tapirxl_listen(*flags: str, timeout: float = 5.0) -> tuple[str, str]:
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "tapirxl", "listen", "--interface", "lo", *flags],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    try:
+        stdout, stderr = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        proc.send_signal(signal.SIGTERM)
+        stdout, stderr = proc.communicate(timeout=5.0)
+    return stdout, stderr
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="live capture not supported on Windows")
+class TestListenStdoutPurity:
+    def test_listen_stdout_empty_when_no_traffic_before_sigterm(self) -> None:
+        stdout, stderr = _run_tapirxl_listen("--json", timeout=3.0)
+        if stdout.strip():
+            _assert_pure_jsonl(stdout)
+        assert stderr, "Expected live capture status on stderr"
