@@ -39,7 +39,7 @@ parser-as-aggregator is the differentiating asset.
 
 | Category  | In scope                                                                  | Out of scope                                     |
 | --------- | ------------------------------------------------------------------------- | ------------------------------------------------ |
-| Input     | PCAP file path                                                            | Live capture (deferred adapter)                  |
+| Input     | PCAP file path; live interface via `tapirxl listen --interface IFACE` | Active probing, DNS resolution of observed names |
 | Output    | `HostEnvelope` JSONL, `InventoryRecord` JSONL                             | Markdown reports (agent tier), parser-side REST  |
 | Inference | Rule-based labelers, consensus, floor triggers, contradiction codes       | LM normalization, fusion, ReAct (agent tier)     |
 | Storage   | None in the parser (stdin/stdout pipes)                                   | Persistent asset records, drift events           |
@@ -159,7 +159,7 @@ src/tapirxl/
 
 configs/                   # Vector shipper (not Python; see §12)
 ├── upload-vector.toml        # compose long-running (file source -> http)
-├── upload-vector.pcap.toml   # demo one-shot (stdin -> http; EOF-clean)
+├── upload-vector.stdin.toml  # demo stdin pipeline (pcap + live → http)
 ├── upload-vector.dryrun.toml # dev (stdin -> console)
 ├── upload-vector.vrl         # shared translation
 ├── upload-vector.tests.toml
@@ -213,8 +213,12 @@ sequenceDiagram
     participant Tri as parser/triage.py<br/>contradictions + routing
     participant Out as parser/serialize.py + core/inventory_record.py<br/>stdout JSONL
 
-    Note over PCAP,Pipe: 1. Open the capture (offline&#59; no live sockets)
-    PCAP->>Pipe: pyshark.FileCapture(DISPLAY_FILTER)
+    Note over PCAP,Pipe: 1. Open the capture (offline FileCapture or live LiveCapture on iface)
+    alt offline PCAP
+        PCAP->>Pipe: pyshark.FileCapture(DISPLAY_FILTER)
+    else live interface
+        PCAP->>Pipe: pyshark.LiveCapture(iface, DISPLAY_FILTER)
+    end
     loop For each packet
         Pipe->>Ext: dispatch by L4 port / dissector presence
 
@@ -432,6 +436,12 @@ tapirxl parse <pcap> --json --output /var/lib/tapirxl/inventory.jsonl
 
 # Regenerate the synthetic Philips demo PCAP
 tapirxl fixtures
+
+# Live capture — InventoryRecord JSONL on stdout (long-running until SIGINT/SIGTERM)
+tapirxl listen --interface eth0 --json
+
+# Live capture with HostEnvelope JSONL
+tapirxl listen --interface eth0
 ```
 
 Justfile recipes mirror this:
@@ -440,6 +450,7 @@ Justfile recipes mirror this:
 | --------------------------------------------------------- | ------------------------------------------ | --------------------- |
 | `just parse PCAP`                                         | `tapirxl parse PCAP --json`                | InventoryRecord JSONL |
 | `just parse-verbose PCAP`                                 | `tapirxl parse PCAP`                       | HostEnvelope JSONL    |
+| `tapirxl listen --interface IFACE --json`                 | live capture                               | InventoryRecord JSONL |
 | `just fixture`                                            | `tapirxl fixtures`                         | synthetic PCAP        |
 | `just test` / `lint` / `fmt`/ `typecheck`                 | standard dev recipes                       |                       |
 | `just vector-validate`                                    | validate Vector configs                    |                       |
@@ -451,6 +462,7 @@ Entry points (declared in `pyproject.toml`):
 
 - `tapirxl` — the Typer app ([`src/tapirxl/cli.py`](../src/tapirxl/cli.py))
 - `tapirxl-parse` — direct call to [`parser/cli.py:main`](../src/tapirxl/parser/cli.py)
+- `tapirxl-listen` — direct call to [`parser/live_cli.py:main`](../src/tapirxl/parser/live_cli.py)
 - `tapirxl-fixtures` — direct call to [`fixtures/cli.py:main`](../src/tapirxl/fixtures/cli.py)
 
 ---
@@ -511,9 +523,9 @@ translation; they differ only in source/sink shape:
   long-running. `file` source tails
   `${TAPIRXL_INVENTORY_FILE:-/var/lib/tapirxl/inventory.jsonl}` (the
   parser-shipper handoff path) and writes to the BlueFlow http sink.
-- **[`upload-vector.pcap.toml`](../configs/upload-vector.pcap.toml)** —
-  demo image `pcap` mode. `stdin` source + same http sink. The topology
-  shuts down on EOF; a `file` source would prevent that (Vector 0.55).
+- **[`upload-vector.stdin.toml`](../configs/upload-vector.stdin.toml)** —
+  demo image `pcap` and `live` modes. `stdin` source + same http sink. Pcap
+  mode shuts down on EOF; live mode runs until the parser exits.
 - **[`upload-vector.dryrun.toml`](../configs/upload-vector.dryrun.toml)** —
   dev. `stdin` source + `console` sink (stdout). No socket opened.
 
@@ -565,7 +577,7 @@ defines two services that share an inventory volume):
 
 | Image                | Entrypoint                                  | Declared volumes                  | User                | Role                                                 |
 | -------------------- | ------------------------------------------- | --------------------------------- | ------------------- | ---------------------------------------------------- |
-| `tapirxl:demo-dev`   | `tini -- tapirxl-demo-entrypoint`           | `/pcap` (RO bind), `/var/lib/vector/data` | `tapirxl` uid 10001 | Mode-switches on `$TAPIRXL_MODE` (`pcap` \| `live`)  |
+| `tapirxl:demo-dev`   | `tini -- tapirxl-demo-entrypoint`           | `/pcap` (RO bind), `/var/lib/vector/data` | `tapirxl` uid 10001 | Mode-switches on `$TAPIRXL_MODE` (`pcap` \| `live`; live runs `tapirxl listen`)  |
 
 All images run non-root. In Tier 1 the parser writes inventory JSONL to a
 shared volume via `--output PATH`; the shipper tails that file (or accepts
@@ -609,7 +621,9 @@ Operator workflows: [`packaging/docker/README.md`](../packaging/docker/README.md
 | Forbidden deps     | `tests/compat/test_deps.py`                                 | No LM stack or Python HTTP uploader on `main` |
 | Vector version pin | `tests/regression/test_vector_version_pinned.py`            | Shipper image tag matches CI expectation      |
 | Phase 1 smoke      | `tests/integration/test_phase1_smoke.py`                    | Demo image → Vector → stub BlueFlow upsert    |
+| Phase 2 live smoke | `tests/integration/test_phase1_live_smoke.py`               | Live demo image + tcpreplay → stub BlueFlow   |
 | Demo image golden  | `tests/regression/test_demo_image.py`                       | Unified image dry-run byte identity           |
+| Live final drain   | `tests/regression/test_live_final_drain.py`                 | Live emitter final state matches pcap goldens |
 
 ### 12.7 CI and Phase 1 smoke gate
 
