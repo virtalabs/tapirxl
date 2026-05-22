@@ -84,11 +84,11 @@ def _apply_timestamps(
         base = base.replace(tzinfo=UTC)
 
     step = manifest.scenario.intra_flow_step_s
-    prev_offset = -1.0
+    prev_offset: float | None = None
     intra_idx = 0
 
     for i, (emit_at_s, pkt) in enumerate(timed):
-        if emit_at_s != prev_offset:
+        if prev_offset is None or emit_at_s != prev_offset:
             intra_idx = 0
             prev_offset = emit_at_s
         else:
