@@ -277,6 +277,44 @@ emits    = []
         )
 
 
+def test_bad_mac_raises(tmp_path):
+    """Invalid full MAC (5 octets) raises ManifestValidationError."""
+    with pytest.raises(ManifestValidationError):
+        _load_toml(
+            tmp_path,
+            _BASE
+            + """\
+
+[assets.bad]
+hostname = "BAD"
+category = "workstation"
+mac_oui  = "00:09:fb"
+mac      = "00:09:fb:bd:75:6"   # only 5 octets — invalid
+ip       = "10.0.0.10"
+emits    = []
+""",
+        )
+
+
+def test_bad_ip_raises(tmp_path):
+    """Malformed IP address raises ManifestValidationError."""
+    with pytest.raises(ManifestValidationError):
+        _load_toml(
+            tmp_path,
+            _BASE
+            + """\
+
+[assets.bad]
+hostname = "BAD"
+category = "workstation"
+mac_oui  = "00:09:fb"
+mac      = "00:09:fb:bd:75:6d"
+ip       = "10.10.10..21"
+emits    = []
+""",
+        )
+
+
 # ── REQ-REF reference checks ──────────────────────────────────────────────────
 
 
@@ -649,3 +687,65 @@ emit_at_s    = 5.0
     assert times == sorted(times)
     # The early packet's time must be strictly before the late packet's time
     assert pkts[0].time < pkts[4].time
+
+
+def test_apply_timestamps_negative_emit_at_s(tmp_path):
+    """emit_at_s = -1.0 must not collide with the bucket sentinel."""
+    from tapirxl.fixtures.generator import generate_packets
+
+    m = _load_toml(
+        tmp_path,
+        """\
+[meta]
+schema_version = 1
+manifest_id    = "negative_emit"
+created_at     = 2026-01-01T00:00:00Z
+
+[scenario]
+domain              = "MININET"
+pcap_base_timestamp = "2026-01-01T00:00:00Z"
+intra_flow_step_s   = 0.00001
+
+[scenario.network]
+dhcp_server_slug = "dhcp"
+gateway_slug     = "gw"
+dns_server_ip    = "10.0.0.1"
+
+[profiles]
+
+[assets.dhcp]
+hostname = ""
+category = "infrastructure"
+mac_oui  = "00:11:22"
+mac      = "00:11:22:33:44:55"
+ip       = "10.0.0.1"
+emits    = []
+
+[assets.gw]
+hostname = ""
+category = "firewall"
+mac_oui  = "00:aa:bb"
+mac      = "00:aa:bb:cc:dd:ee"
+ip       = "10.0.0.254"
+emits    = []
+
+[assets.client]
+hostname = "CLIENT01"
+category = "workstation"
+mac_oui  = "de:ad:be"
+mac      = "de:ad:be:ef:00:01"
+ip       = "10.0.0.10"
+emits    = ["dhcp"]
+
+[assets.client.dhcp]
+xid_discover = 0xAABBCCDD
+xid_request  = 0xAABBCCD0
+emit_at_s    = -1.0
+""",
+    )
+    pkts = generate_packets(m)
+    assert len(pkts) == 4
+    base_ts = m.scenario.pcap_base_timestamp.timestamp()
+    step = m.scenario.intra_flow_step_s
+    assert pkts[0].time == pytest.approx(base_ts + (-1.0))
+    assert pkts[1].time == pytest.approx(base_ts + (-1.0 + step))

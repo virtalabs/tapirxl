@@ -12,6 +12,7 @@ this module contains only types (no I/O).
 
 from __future__ import annotations
 
+import ipaddress
 import re
 import warnings
 from datetime import datetime
@@ -167,6 +168,7 @@ _ASSET_ROOT_ALLOWLIST = frozenset(
 )
 
 _MAC_OUI_RE = re.compile(r"^([0-9a-fA-F]{2}:){2}[0-9a-fA-F]{2}$")
+_MAC_RE = re.compile(r"^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$")
 
 
 class Asset(BaseModel):
@@ -207,6 +209,21 @@ class Asset(BaseModel):
                 f"mac_oui {v!r} must match XX:XX:XX (colon-separated hex octets, REQ-VAL-007)"
             )
         return v.lower()
+
+    @field_validator("mac")
+    @classmethod
+    def _mac_format(cls, v: str) -> str:
+        if not _MAC_RE.match(v):
+            raise ValueError(f"mac {v!r} must match XX:XX:XX:XX:XX:XX (colon-separated hex octets)")
+        return v.lower()
+
+    @field_validator("ip")
+    @classmethod
+    def _ip_format(cls, v: str) -> str:
+        try:
+            return str(ipaddress.ip_address(v))
+        except ValueError as exc:
+            raise ValueError(f"ip {v!r} is not a valid IP address") from exc
 
     @model_validator(mode="after")
     def _emits_have_subtables(self) -> Asset:
