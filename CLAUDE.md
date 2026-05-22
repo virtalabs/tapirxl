@@ -90,7 +90,13 @@ parser/         # deterministic only — NO dspy, NO LM imports
   tables.py            # static lookup tables
   ports.py             # PacketSource, EnvelopeSink (typing.Protocol)
   adapters/            # pyshark_source, stdout_sink
-fixtures/       # synthetic PCAP generator (topology, builder, cli)
+fixtures/              # manifest-driven synthetic PCAP generator
+  manifest.py          # Pydantic SignalManifest schema (no I/O)
+  loader.py            # TOML parse, profile merge, _hex decode
+  generator.py         # dispatch assets + flows → timed packets
+  signal_manifest.toml # shipped ACMEHOSP demo (example manifest)
+  cli.py               # tapirxl-fixtures (--manifest, --output, --seed-time)
+  protocols/           # per-protocol emitters (dhcp, dicom, smb2, …)
 cli.py          # typer app: parse, fixtures
 ```
 
