@@ -55,9 +55,6 @@ def main(argv: list[str] | None = None) -> Path:
         from datetime import datetime
 
         seed = datetime.fromisoformat(args.seed_time.replace("Z", "+00:00"))
-        # Pydantic models are immutable; rebuild with the override
-        scenario_data = manifest.scenario.model_dump()
-        scenario_data["pcap_base_timestamp"] = seed
         manifest = manifest.model_copy(
             update={"scenario": manifest.scenario.model_copy(update={"pcap_base_timestamp": seed})}
         )
