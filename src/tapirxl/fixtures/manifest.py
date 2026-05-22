@@ -374,7 +374,7 @@ class SignalManifest(BaseModel):
     flows: list[Flow] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def _cross_references(self) -> SignalManifest:
+    def _check_unique_hostnames(self) -> SignalManifest:
         # REQ-VAL-006: duplicate hostnames
         seen: dict[str, str] = {}
         for slug, asset in self.assets.items():
@@ -385,7 +385,10 @@ class SignalManifest(BaseModel):
                         f"{seen[asset.hostname]!r} and {slug!r} (REQ-VAL-006)"
                     )
                 seen[asset.hostname] = slug
+        return self
 
+    @model_validator(mode="after")
+    def _check_flow_slug_references(self) -> SignalManifest:
         # Flow slug references must resolve
         for i, flow in enumerate(self.flows):
             for attr in ("client", "server", "requester", "responder", "asset"):
@@ -402,8 +405,10 @@ class SignalManifest(BaseModel):
                     raise ValueError(
                         f"flows[{i}] ({flow.type}) server_mac_via references unknown slug {slug!r}"
                     )
+        return self
 
-        # DHCP / tcp_syn profile references must resolve
+    @model_validator(mode="after")
+    def _check_asset_profile_references(self) -> SignalManifest:
         for slug, asset in self.assets.items():
             if asset.dhcp and asset.dhcp.dhcp_profile:
                 if asset.dhcp.dhcp_profile not in self.profiles:
@@ -417,14 +422,20 @@ class SignalManifest(BaseModel):
                         f"asset {slug!r} tcp_profile {asset.tcp_syn.tcp_profile!r} "
                         f"not found in [profiles] (REQ-REF-003)"
                     )
+        return self
 
+    @model_validator(mode="after")
+    def _check_flow_profile_references(self) -> SignalManifest:
         for i, flow in enumerate(self.flows):
             if isinstance(flow, FlowTcpSyn) and flow.tcp_profile:
                 if flow.tcp_profile not in self.profiles:
                     raise ValueError(
                         f"flows[{i}] tcp_profile {flow.tcp_profile!r} not found in [profiles]"
                     )
+        return self
 
+    @model_validator(mode="after")
+    def _check_scenario_slug_references(self) -> SignalManifest:
         # Scenario network slugs must resolve
         net = self.scenario.network
         if net.dhcp_server_slug not in self.assets:
@@ -436,5 +447,4 @@ class SignalManifest(BaseModel):
             raise ValueError(
                 f"scenario.network.gateway_slug {net.gateway_slug!r} must reference an asset"
             )
-
         return self
