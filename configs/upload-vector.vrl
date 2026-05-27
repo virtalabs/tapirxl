@@ -63,7 +63,7 @@ if .vendor != null {
 
 if .product != null {
   product_slug = string!(.product)
-  out.model = get(product_display, [product_slug]) ?? product_slug
+  out.product = get(product_display, [product_slug]) ?? product_slug
 }
 
 if .version != null {
