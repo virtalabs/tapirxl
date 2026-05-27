@@ -62,6 +62,14 @@ class ScenarioNetwork(BaseModel):
     dns_server_ip: str
     subnet_mask: str = "255.255.255.0"
 
+    @field_validator("dns_server_ip")
+    @classmethod
+    def _dns_server_ip_format(cls, v: str) -> str:
+        try:
+            return str(ipaddress.ip_address(v))
+        except ValueError as exc:
+            raise ValueError(f"dns_server_ip {v!r} is not a valid IP address") from exc
+
 
 class ScenarioContext(BaseModel):
     domain: str
@@ -226,6 +234,13 @@ class Asset(BaseModel):
             raise ValueError(f"ip {v!r} is not a valid IP address") from exc
 
     @model_validator(mode="after")
+    def _mac_matches_oui(self) -> Asset:
+        prefix = f"{self.mac_oui}:"
+        if not self.mac.startswith(prefix):
+            raise ValueError(f"mac {self.mac!r} must start with mac_oui prefix {self.mac_oui!r}")
+        return self
+
+    @model_validator(mode="after")
     def _emits_have_subtables(self) -> Asset:
         for proto in self.emits:
             if getattr(self, proto, None) is None:
@@ -331,6 +346,14 @@ class FlowTlsClientHello(BaseModel):
     emit_at_s: float
     client_port: int
     sni: str
+
+    @field_validator("server_ip")
+    @classmethod
+    def _server_ip_format(cls, v: str) -> str:
+        try:
+            return str(ipaddress.ip_address(v))
+        except ValueError as exc:
+            raise ValueError(f"server_ip {v!r} is not a valid IP address") from exc
 
 
 class FlowLlmnrQuery(BaseModel):

@@ -92,7 +92,9 @@ def emit_ntlmssp_flow(
         server_hostname=server_hostname,
         server_challenge=flow.server_challenge_hex,
     )
-    smb_resp1 = smb2_sync_header(command=1, message_id=2) + smb2_session_setup_response_body(chal)
+    smb_resp1 = smb2_sync_header(
+        command=1, message_id=2, response=True
+    ) + smb2_session_setup_response_body(chal)
     seg, tcpst = tcp_psh_exchange(
         sender="server", tcpst=tcpst, pdu=_nbss_session_message_payload(smb_resp1)
     )
@@ -109,7 +111,9 @@ def emit_ntlmssp_flow(
     pkts.extend(seg)
 
     # Final ACK (server → client)
-    smb_resp2 = smb2_sync_header(command=1, message_id=3) + smb2_session_setup_response_body(b"")
+    smb_resp2 = smb2_sync_header(
+        command=1, message_id=3, response=True
+    ) + smb2_session_setup_response_body(b"")
     seg, _ = tcp_psh_exchange(
         sender="server", tcpst=tcpst, pdu=_nbss_session_message_payload(smb_resp2)
     )

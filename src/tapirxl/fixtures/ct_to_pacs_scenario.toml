@@ -1,0 +1,100 @@
+# schema_version = 1
+# generator: hand-authored minimal scenario
+# purpose: GE BrightSpeed Elite Select CT → GE Centricity PACS IW (DICOM A-ASSOC + C-STORE)
+#          two clinical assets only — no WS-Discovery / ARP / SMB2 / TLS
+#
+# CPE anchors:
+#   cpe:2.3:h:gehealthcare:brightspeed_elite_select:-:*:*:*:*:*:*:*
+#   cpe:2.3:a:gehealthcare:centricity_pacs_iw:5.0:*:*:*:*:*:*:*
+
+[meta]
+schema_version = 1
+manifest_id    = "ct_to_pacs_v1"
+created_at     = 2026-06-01T00:00:00Z
+
+[scenario]
+domain              = "CTTOPACS"
+pcap_base_timestamp = "2026-06-01T12:00:00Z"
+intra_flow_step_s   = 0.00001   # pre-resolved: 10_000 / 1_000_000_000 (REQ-PRE-003)
+
+[scenario.network]
+dhcp_server_slug = "dhcp_stub"
+gateway_slug     = "gateway_stub"
+dns_server_ip    = "10.40.2.254"
+subnet_mask      = "255.255.255.0"
+
+[profiles]
+
+# ── GE BrightSpeed Elite Select (DICOM client + LLMNR hostname) ────────────
+
+[assets.ge_brightspeed_ct]
+hostname  = "BRIGHTSPEED01"
+category  = "ct_scanner"
+mac_oui   = "00:10:18"
+mac       = "00:10:18:aa:bb:01"
+ip        = "10.40.2.20"
+notes     = "GE BrightSpeed Elite Select CT scanner"
+cpe       = "cpe:2.3:h:gehealthcare:brightspeed_elite_select:-:*:*:*:*:*:*:*"
+emits     = ["llmnr_response"]
+
+[assets.ge_brightspeed_ct.llmnr_response]
+emit_at_s = 0.0
+
+# ── GE Centricity PACS IW (DICOM server) ─────────────────────────────────────
+
+[assets.rad_pacs_001]
+hostname  = "PACS-CENTRICITY-001"
+category  = "server"
+mac_oui   = "00:1a:2b"
+mac       = "00:1a:2b:3c:51:10"
+ip        = "10.40.2.10"
+notes     = "GE Centricity PACS IW 5.0 (rad-pacs-001)"
+cpe       = "cpe:2.3:a:gehealthcare:centricity_pacs_iw:5.0:*:*:*:*:*:*:*"
+emits     = ["llmnr_response"]
+
+[assets.rad_pacs_001.llmnr_response]
+emit_at_s = 0.0
+
+# ── Schema placeholders (no traffic) ─────────────────────────────────────────
+
+[assets.dhcp_stub]
+hostname  = ""
+category  = "infrastructure"
+mac_oui   = "00:11:22"
+mac       = "00:11:22:33:44:55"
+ip        = "10.40.2.254"
+emits     = []
+
+[assets.gateway_stub]
+hostname  = ""
+category  = "firewall"
+mac_oui   = "00:aa:bb"
+mac       = "00:aa:bb:cc:dd:ee"
+ip        = "10.40.2.1"
+emits     = []
+
+# ── GE BrightSpeed → Centricity PACS DICOM exchange ──────────────────────────
+
+[[flows]]
+type                      = "dicom_associate_and_cstore"
+client                    = "ge_brightspeed_ct"
+server                    = "rad_pacs_001"
+emit_at_s                 = 5.0
+client_port               = 49152
+server_port               = 104
+called_ae                 = "CENTRICITY001"
+calling_ae                = "BRIGHTSPEED01"
+client_impl_class_uid     = "1.2.840.113619.2.5"
+client_impl_version       = "AW1234"
+server_impl_class_uid     = "1.2.840.113619.7.5.1"
+server_impl_version       = "CENTRICITY5.0"
+abstract_syntax           = "1.2.840.10008.5.1.4.1.1.2"   # CT Image Storage
+transfer_syntax           = "1.2.840.10008.1.2.1"          # Explicit VR Little Endian
+max_pdu                   = 16382
+message_id                = 2001
+sop_instance_uid          = "1.2.840.113619.2.55.3.1234567890.1"
+dataset_patient_name      = "SYNTH^POC"
+dataset_modality          = "CT"
+dataset_manufacturer      = "GE Healthcare"
+dataset_model             = "BrightSpeed Elite Select"
+dataset_software_versions = ["11.2.0"]

@@ -54,6 +54,10 @@ def _merge_profile_into(
 
     Looks for any key ending in ``_profile``; if found, merges the referenced
     profile dict as a base layer before the caller's explicit keys.
+
+    Shallow merge only: nested dict values are replaced wholesale by caller
+    keys (REQ-REF-004). Deep-merge is deferred until nested profile blocks
+    exist in the schema.
     """
     result = dict(sub_table)
     for key in list(sub_table.keys()):

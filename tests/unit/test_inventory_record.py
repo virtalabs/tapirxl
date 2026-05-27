@@ -179,6 +179,14 @@ class TestVersionDerivation:
         rec = build_jsonl_record(env, fused=None, no_llm=True)
         assert rec["version"] == "Eleva 4.5.1"
 
+    def test_dicom_software_versions_nested(self) -> None:
+        env = _bare_envelope()
+        env["pipeline_3"] = {
+            "dicom_association": [{"dicom_association": {"dicom_software_versions": "4.1.6"}}]
+        }
+        rec = build_jsonl_record(env, fused=None, no_llm=True)
+        assert rec["version"] == "4.1.6"
+
     def test_mdns_txt_firmware_key(self) -> None:
         env = _bare_envelope()
         env["mdns_txt_parsed"] = {"firmware": "1.2.3"}
