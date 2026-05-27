@@ -3,6 +3,7 @@ from __future__ import annotations
 from tapirxl.parser._helpers import (
     _base_record,
     _dicom_tag_value_explicit_vr_le,
+    _parse_dicom_user_info,
     _safe,
     _slice_ip_tcp_payload,
 )
@@ -21,8 +22,11 @@ def handle(packet, oui_table: dict) -> dict | None:
     sop_classes = []
     assoc_info = {"pdu_type_byte": pdu_type}
 
-    impl_uid = getattr(packet.dicom, "tag_2052_uid", "") if hasattr(packet, "dicom") else ""
-    impl_ver = getattr(packet.dicom, "tag_2055_pn", "") if hasattr(packet, "dicom") else ""
+    impl_uid, impl_ver = _parse_dicom_user_info(pdu_bytes)
+    if not impl_uid and hasattr(packet, "dicom"):
+        impl_uid = getattr(packet.dicom, "tag_2052_uid", "") or ""
+    if not impl_ver and hasattr(packet, "dicom"):
+        impl_ver = getattr(packet.dicom, "tag_2055_pn", "") or ""
 
     philips_arc_hit = []
     pb = pdu_bytes.lower()

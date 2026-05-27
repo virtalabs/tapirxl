@@ -23,6 +23,7 @@
         null,
         "microsoft",
         "philips",
+        "gehealthcare",
         "vmware",
         "paloaltonetworks",
         "intel"
@@ -38,7 +39,9 @@
         "windows_server",
         "intellivue_mx700",
         "brilliance_ict",
+        "brightspeed_elite_select",
         "clinical_collaboration_platform",
+        "centricity_pacs_iw",
         "pan_os"
       ],
       "description": "Product as a cpedict canonical slug. Used as slot 4 (product) in the cpe:2.3 string. Null when no deterministic product fingerprint (DICOM ManufacturerModelName, DHCP VCI + PRL, WS-Discovery series code, etc.) is observed."

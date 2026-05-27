@@ -469,7 +469,7 @@ def build_ntlmssp_authenticate(*, domain: str, username: str, workstation: str) 
 # ── SMB2 frame builders ───────────────────────────────────────────────────────
 
 
-def smb2_sync_header(command: int = 0, message_id: int = 1) -> bytes:
+def smb2_sync_header(command: int = 0, message_id: int = 1, *, response: bool = False) -> bytes:
     hdr = bytearray(64)
     hdr[0:4] = b"\xfeSMB"
     struct.pack_into("<H", hdr, 4, 64)
@@ -477,7 +477,8 @@ def smb2_sync_header(command: int = 0, message_id: int = 1) -> bytes:
     struct.pack_into("<I", hdr, 8, 0)
     struct.pack_into("<H", hdr, 12, command)
     struct.pack_into("<H", hdr, 14, 126)
-    struct.pack_into("<I", hdr, 16, 0)
+    flags = 0x00000001 if response else 0
+    struct.pack_into("<I", hdr, 16, flags)
     struct.pack_into("<I", hdr, 20, 0)
     struct.pack_into("<Q", hdr, 24, message_id)
     struct.pack_into("<I", hdr, 32, 0)

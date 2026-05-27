@@ -315,6 +315,51 @@ emits    = []
         )
 
 
+def test_bad_dns_server_ip_raises(tmp_path):
+    with pytest.raises(ManifestValidationError):
+        _load_toml(
+            tmp_path,
+            _BASE.replace('dns_server_ip    = "10.0.0.1"', 'dns_server_ip    = "10.10.20..7"'),
+        )
+
+
+def test_bad_tls_server_ip_raises(tmp_path):
+    with pytest.raises(ManifestValidationError):
+        _load_toml(
+            tmp_path,
+            _BASE
+            + """
+
+[[flows]]
+type             = "tls_client_hello"
+client           = "gw"
+server_ip        = "not-an-ip"
+server_mac_via   = "srv"
+emit_at_s        = 30.0
+client_port      = 49302
+sni              = "example.com"
+""",
+        )
+
+
+def test_mac_oui_prefix_mismatch_raises(tmp_path):
+    with pytest.raises(ManifestValidationError):
+        _load_toml(
+            tmp_path,
+            _BASE
+            + """\
+
+[assets.bad]
+hostname = "BAD"
+category = "workstation"
+mac_oui  = "00:11:22"
+mac      = "00:09:fb:bd:75:6d"
+ip       = "10.0.0.10"
+emits    = []
+""",
+        )
+
+
 # ── REQ-REF reference checks ──────────────────────────────────────────────────
 
 

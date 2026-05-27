@@ -26,6 +26,12 @@ typecheck:
 fixture:
     uv run tapirxl fixtures
 
+# Regenerate CT→PACS minimal scenario PCAP
+fixture-ct-pacs:
+    uv run tapirxl fixtures \
+        --manifest src/tapirxl/fixtures/ct_to_pacs_scenario.toml \
+        --output tests/fixtures/ct_to_pacs_scenario.pcap
+
 # Parse PCAP → InventoryRecord JSONL (schema: schemas/inventory_record.schema.json)
 parse PCAP:
     uv run tapirxl parse {{PCAP}} --json

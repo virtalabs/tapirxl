@@ -17,10 +17,10 @@ type   = "blackhole"
 inputs = ["to_asset"]
 print_interval_secs = 0
 
-## ---- 1: microsoft / windows_10 / workstation / HIGH (full fields) ----
+## ---- 1: philips / clinical_collaboration_platform / pacs / HIGH (full fields) ----
 
 [[tests]]
-name = "record_01_microsoft_windows_10_high"
+name = "record_01_philips_clinical_collaboration_platform_high"
 
 [[tests.inputs]]
 insert_at = "to_asset"
@@ -29,9 +29,9 @@ type      = "log"
 hostname     = "CCPLATFORM01"
 ip_address   = "10.10.20.20"
 mac_address  = "00:09:5C:BB:CC:02"
-vendor       = "microsoft"
-product      = "windows_10"
-device_class = "workstation"
+vendor       = "philips"
+product      = "clinical_collaboration_platform"
+device_class = "pacs"
 open_ports   = [5355]
 confidence   = "HIGH"
 
@@ -43,9 +43,9 @@ source = '''
   assert_eq!(.mac_address, "00:09:5C:BB:CC:02")
   assert_eq!(.ip_address, "10.10.20.20")
   assert_eq!(.hostname, "CCPLATFORM01")
-  assert_eq!(.manufacturer, "Microsoft")
-  assert_eq!(.model, "Windows 10")
-  assert_eq!(.category, "workstation")
+  assert_eq!(.manufacturer, "Philips")
+  assert_eq!(.model, "Clinical Collaboration Platform")
+  assert_eq!(.category, "pacs")
   assert_eq!(.open_ports_tcp, [5355])
   assert_eq!(.external_keys.tapirxl_confidence, "HIGH")
   assert!(!exists(.vendor),         "source key vendor must be stripped")
@@ -173,22 +173,24 @@ source = '''
   true
 '''
 
-## ---- 6: philips / brilliance_ict / null device_class / HIGH ----
+## ---- 6: philips / brilliance_ict / CT device_class / HIGH ----
 
 [[tests]]
-name = "record_06_philips_brilliance_ict_no_category"
+name = "record_06_philips_brilliance_ict_ct"
 
 [[tests.inputs]]
 insert_at = "to_asset"
 type      = "log"
 [tests.inputs.log_fields]
-hostname    = "BRILL-CT01"
-ip_address  = "10.10.10.30"
-mac_address = "00:90:20:AA:BB:01"
-vendor      = "philips"
-product     = "brilliance_ict"
-open_ports  = []
-confidence  = "HIGH"
+hostname     = "BRILL-CT01"
+ip_address   = "10.10.10.30"
+mac_address  = "00:90:20:AA:BB:01"
+vendor       = "philips"
+product      = "brilliance_ict"
+device_class = "CT"
+version      = "4.1.6"
+open_ports   = []
+confidence   = "HIGH"
 
 [[tests.outputs]]
 extract_from = "to_asset"
@@ -197,7 +199,8 @@ type = "vrl"
 source = '''
   assert_eq!(.manufacturer, "Philips")
   assert_eq!(.model, "Brilliance iCT")
-  assert!(!exists(.category), "null device_class must be omitted")
+  assert_eq!(.category, "CT")
+  assert_eq!(.app_sw_version, "4.1.6")
   true
 '''
 

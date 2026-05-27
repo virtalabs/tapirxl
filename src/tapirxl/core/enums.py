@@ -11,6 +11,7 @@ from __future__ import annotations
 CPE_VENDOR_ENUM: tuple[str, ...] = (
     "microsoft",
     "philips",
+    "gehealthcare",
     "vmware",
     "paloaltonetworks",
     "intel",
@@ -22,7 +23,9 @@ CPE_PRODUCT_ENUM: tuple[str, ...] = (
     "windows_server",
     "intellivue_mx700",
     "brilliance_ict",
+    "brightspeed_elite_select",
     "clinical_collaboration_platform",
+    "centricity_pacs_iw",
     "pan_os",
 )
 
@@ -70,6 +73,18 @@ def _env_dicom_assoc_results(env: dict) -> list[dict]:
     return (env.get("pipeline_3") or {}).get("dicom_association") or []
 
 
+def _dicom_assoc_payload(raw: dict) -> dict:
+    """Unwrap runtime ``{"dicom_association": {...}}`` envelope records."""
+    inner = raw.get("dicom_association")
+    return inner if isinstance(inner, dict) else raw
+
+
+def _dicom_assoc_tags(raw: dict) -> dict:
+    payload = _dicom_assoc_payload(raw)
+    tags = raw.get("tags") or payload.get("tags") or {}
+    return tags if isinstance(tags, dict) else {}
+
+
 def _env_dhcp_vci(env: dict) -> str:
     for rec in _env_dhcp_records(env):
         vci = rec.get("option60_vendor_class") or ""
@@ -111,16 +126,31 @@ def _env_has_sni_substring(env: dict, needle: str) -> bool:
 
 def to_cpe_vendor(env: dict) -> str | None:
     """Map envelope to a CPE vendor slug (highest-priority signal first)."""
+    promoted_man = (env.get("dicom_manufacturer") or "").lower()
+    if "philips" in promoted_man:
+        return "philips"
+    if "ge healthcare" in promoted_man or promoted_man == "ge":
+        return "gehealthcare"
+
     for assoc in _env_dicom_assoc_results(env):
+        payload = _dicom_assoc_payload(assoc)
+        tags = _dicom_assoc_tags(assoc)
         man = (
-            assoc.get("dicom_manufacturer") or assoc.get("tags", {}).get("(0008,0070)") or ""
+            payload.get("dicom_manufacturer")
+            or tags.get("manufacturer")
+            or tags.get("(0008,0070)")
+            or ""
         ).lower()
         if "philips" in man:
             return "philips"
-        uid = (assoc.get("implementation_class_uid") or "").lower()
+        if "ge healthcare" in man or man == "ge":
+            return "gehealthcare"
+        uid = (payload.get("implementation_class_uid") or "").lower()
+        if uid.startswith("1.2.840.113619."):
+            return "gehealthcare"
         if uid.startswith("1.3.46."):
             return "philips"
-        if assoc.get("philips_image_uid_arc_hits") or assoc.get("image_uid_arc_counts", {}).get(
+        if payload.get("philips_image_uid_arc_hits") or payload.get("image_uid_arc_counts", {}).get(
             "1.2.840.113704."
         ):
             return "philips"
@@ -162,12 +192,21 @@ def to_cpe_product(env: dict) -> str | None:
     """Map envelope to a CPE product slug."""
     all_assoc = _env_dicom_assoc_results(env) or (env.get("dicom_assoc_results") or [])
     for assoc in all_assoc:
+        payload = _dicom_assoc_payload(assoc)
+        tags = _dicom_assoc_tags(assoc)
         model = (
-            assoc.get("dicom_manufacturer_model") or assoc.get("tags", {}).get("(0008,1090)") or ""
+            payload.get("dicom_manufacturer_model")
+            or tags.get("model_name")
+            or tags.get("(0008,1090)")
+            or ""
         ).lower()
         if "brilliance ict" in model or "brilliance" in model:
             return "brilliance_ict"
-        impl_uid = (assoc.get("implementation_class_uid") or "").lower()
+        if "brightspeed" in model:
+            return "brightspeed_elite_select"
+        impl_uid = (payload.get("implementation_class_uid") or "").lower()
+        if impl_uid.startswith("1.2.840.113619.7."):
+            return "centricity_pacs_iw"
         if impl_uid.startswith("1.3.46.670589.40"):
             return "clinical_collaboration_platform"
         if impl_uid.startswith("1.3.46.670589.30"):
@@ -207,10 +246,16 @@ def to_cpe_product(env: dict) -> str | None:
 
 def to_device_class(env: dict) -> str | None:
     """Map envelope to a device_class string (DICOM Modality wins)."""
+    promoted_modality = (env.get("dicom_modality") or "").strip().upper()
+    if promoted_modality in DICOM_MODALITY_ENUM:
+        return promoted_modality
+
     all_assoc = _env_dicom_assoc_results(env) or (env.get("dicom_assoc_results") or [])
     for assoc in all_assoc:
+        payload = _dicom_assoc_payload(assoc)
+        tags = _dicom_assoc_tags(assoc)
         modality = (
-            (assoc.get("dicom_modality") or assoc.get("tags", {}).get("(0008,0060)") or "")
+            (payload.get("dicom_modality") or tags.get("modality") or tags.get("(0008,0060)") or "")
             .strip()
             .upper()
         )
@@ -237,7 +282,8 @@ def to_device_class(env: dict) -> str | None:
 
     if has_dicom and not (env.get("ws_uuid") or (env.get("pipeline_1") or {}).get("ws_discovery")):
         for assoc in all_assoc:
-            pdu_byte = (assoc.get("pdu_type_byte") or "").lower()
+            payload = _dicom_assoc_payload(assoc)
+            pdu_byte = (payload.get("pdu_type_byte") or assoc.get("pdu_type_byte") or "").lower()
             if pdu_byte == "02":
                 return "pacs"
 

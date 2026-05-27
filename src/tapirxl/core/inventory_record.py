@@ -15,6 +15,7 @@ from tapirxl.core.enums import (
     CPE_PRODUCT_ENUM,
     CPE_VENDOR_ENUM,
     DEVICE_CLASS_ENUM,
+    _dicom_assoc_payload,
     _env_dicom_assoc_results,
     enum_or_none,
     to_cpe_product,
@@ -83,7 +84,11 @@ def _derive_hostname(envelope: dict) -> str | None:
 
 def _derive_version(envelope: dict) -> str | None:
     for assoc in _env_dicom_assoc_results(envelope):
-        sv = (assoc.get("dicom_software_versions") or "").strip()
+        payload = _dicom_assoc_payload(assoc)
+        sv = payload.get("dicom_software_versions")
+        if isinstance(sv, list):
+            sv = sv[0] if sv else ""
+        sv = (sv or "").strip()
         if sv:
             return sv
     txt = envelope.get("mdns_txt_parsed") or {}

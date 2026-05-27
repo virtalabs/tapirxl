@@ -12,6 +12,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any
 
+from tapirxl.fixtures.loader import ManifestValidationError
 from tapirxl.fixtures.manifest import SignalManifest
 from tapirxl.fixtures.protocols import arp, dhcp, dicom, llmnr, smb2, tcp_syn, tls, wsdiscovery
 
@@ -50,18 +51,20 @@ def generate_packets(manifest: SignalManifest) -> list[object]:
     """
     timed: list[tuple[float, object]] = []
 
-    for _slug, asset in manifest.assets.items():
+    for slug, asset in manifest.assets.items():
         for proto in asset.emits:
             handler = SOLO_HANDLERS.get(proto)
             if handler is None:
-                continue
+                raise ManifestValidationError(
+                    f"asset {slug!r}: no SOLO handler for emits={proto!r}"
+                )
             for emit_at_s, pkt in handler(asset, manifest):
                 timed.append((emit_at_s, pkt))
 
     for flow in manifest.flows:
         handler = FLOW_HANDLERS.get(flow.type)
         if handler is None:
-            continue
+            raise ManifestValidationError(f"no FLOW handler for type={flow.type!r}")
         for emit_at_s, pkt in handler(flow, manifest):
             timed.append((emit_at_s, pkt))
 

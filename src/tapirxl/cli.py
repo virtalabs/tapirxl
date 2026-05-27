@@ -56,6 +56,10 @@ def parse(
 
 @app.command("fixtures")
 def fixtures(
+    manifest: Annotated[
+        str | None,
+        typer.Option("--manifest", help="Path to a signal manifest TOML file"),
+    ] = None,
     output: Annotated[str | None, typer.Option("--output", "-o", help="Output PCAP path")] = None,
     seed_time: Annotated[
         str | None, typer.Option("--seed-time", help="ISO8601 UTC timestamp")
@@ -65,6 +69,8 @@ def fixtures(
     from tapirxl.fixtures.cli import main as _fixtures_main
 
     argv: list[str] = []
+    if manifest:
+        argv += ["--manifest", manifest]
     if output:
         argv += ["--output", output]
     if seed_time:
