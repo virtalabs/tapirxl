@@ -1,0 +1,356 @@
+# schema_version = 1
+# generator: hand-authored from traffic_generation_manifest_reqs.md
+# purpose: default signal manifest for the ACMEHOSP synthetic demo PCAP and golden tests
+#
+# This manifest happens to emit mostly Philips medical-device signals alongside
+# supporting Windows/infra hosts.  The manifest format and loader are vendor-neutral;
+# edit or replace this file to generate a different scenario without touching any
+# Python source code.
+
+[meta]
+schema_version = 1
+manifest_id    = "acmehosp_demo_v1"
+created_at     = 2026-05-21T00:00:00Z
+
+# ── Scenario context ──────────────────────────────────────────────────────────
+
+[scenario]
+domain                = "ACMEHOSP"
+pcap_base_timestamp   = "2026-05-14T17:00:00Z"
+intra_flow_step_s     = 0.00001   # pre-resolved: 10_000 / 1_000_000_000 (REQ-PRE-003)
+
+[scenario.network]
+dhcp_server_slug = "dhcp_server"
+gateway_slug     = "gateway"
+dns_server_ip    = "10.10.20.7"
+subnet_mask      = "255.255.255.0"
+
+[scenario.dhcp_lease]
+lease_seconds = 86400
+t1_seconds    = 43200
+t2_seconds    = 75600
+
+# ── Reusable profiles ─────────────────────────────────────────────────────────
+# (REQ-MAN-003, REQ-DOC-001)
+
+[profiles.dhcp_medical_embedded]
+description    = "Embedded medical-device DHCP client (Eleva-platform PRL, TTL 64)"
+option55_prl   = [1, 3, 6, 15, 28, 51, 58, 59]
+ip_ttl         = 64
+
+[profiles.dhcp_windows_10]
+description    = "Windows 10 / Server 2019 DHCP client profile (MSFT 5.0)"
+option60_vci   = "MSFT 5.0"
+option55_prl   = [1, 3, 6, 15, 31, 33, 43, 44, 46, 47, 119, 121, 249, 252]
+ip_ttl         = 128
+
+[profiles.dhcp_windows_7]
+description    = "Windows 7 SP1 DHCP client profile — Fingerbank: 'Windows 7 / Server 2008 R2 DHCP client typical'"
+option60_vci   = "MSFT 5.0"
+option55_prl   = [1, 15, 3, 6, 44, 46, 47, 31, 33, 121, 249, 43]
+ip_ttl         = 128
+
+[profiles.tcp_syn_win7]
+description    = "Windows 7 SP1 TCP SYN fingerprint (TTL 128, MSS 1460, WScale 8, SACKPermitted)"
+ip_ttl         = 128
+mss            = 1460
+window         = 8192
+wscale         = 8
+sack_permitted = true
+
+# ── Assets ────────────────────────────────────────────────────────────────────
+# (REQ-MAN-004, REQ-MAN-005, REQ-DOC-002)
+# Clinical VLAN: 10.10.10.0/24   IT/Management VLAN: 10.10.20.0/24
+
+# ── 2.1 IntelliVue MX700 ─────────────────────────────────────────────────────
+
+[assets.intellivue_mx700]
+hostname  = "MX700-bed12"
+category  = "patient_monitor"
+mac_oui   = "00:09:fb"
+mac       = "00:09:fb:bd:75:6d"
+ip        = "10.10.10.21"
+notes     = "Philips IntelliVue MX700 patient monitor — CVE-2020-16216; cpe:2.3:h:philips:intellivue_mx700"
+cve       = "CVE-2020-16216"
+cpe       = "cpe:2.3:h:philips:intellivue_mx700:-:*:*:*:*:*:*:*"
+emits     = ["dhcp", "wsdiscovery"]
+
+[assets.intellivue_mx700.dhcp]
+dhcp_profile = "dhcp_medical_embedded"
+xid_discover = 0xAABBCCDD
+xid_request  = 0xAABBCCD0
+option60_vci = "Philips IntelliVue"
+emit_at_s    = 0.0
+
+[assets.intellivue_mx700.wsdiscovery]
+uuid      = "50484248-4332-3638-3631-0009fbbd756d"
+types     = ["urn:ihe-pcd:device:patientmonitor"]
+emit_at_s = 0.0
+
+# ── 2.2 Brilliance iCT ───────────────────────────────────────────────────────
+
+[assets.brilliance_ict]
+hostname  = "BRILL-CT01"
+category  = "ct_scanner"
+mac_oui   = "00:90:20"
+mac       = "00:90:20:aa:bb:01"
+ip        = "10.10.10.30"
+notes     = "Philips Brilliance iCT CT scanner — CVE-2018-8857; cpe:2.3:h:philips:brilliance_ict"
+cve       = "CVE-2018-8857"
+cpe       = "cpe:2.3:h:philips:brilliance_ict:-:*:*:*:*:*:*:*"
+emits     = ["dhcp"]
+
+[assets.brilliance_ict.dhcp]
+dhcp_profile = "dhcp_medical_embedded"
+xid_discover = 0x33CC0001
+xid_request  = 0x33CC0002
+option60_vci = "Philips Brilliance iCT"
+emit_at_s    = 5.0
+
+# ── 2.3 CT Console Win7 — ACMECT01 ───────────────────────────────────────────
+
+[assets.acmect01]
+hostname  = "ACMECT01"
+category  = "workstation"
+mac_oui   = "e8:d8:d1"
+mac       = "e8:d8:d1:aa:bb:02"
+ip        = "10.10.10.40"
+notes     = "CT operator console Windows 7 SP1 — CVE-2021-1675; cpe:2.3:o:microsoft:windows_7:-:sp1"
+cve       = "CVE-2021-1675"
+cpe       = "cpe:2.3:o:microsoft:windows_7:-:sp1:*:*:*:*:*:*:*"
+emits     = ["dhcp", "llmnr_response"]
+
+[assets.acmect01.dhcp]
+dhcp_profile = "dhcp_windows_7"
+xid_discover = 0x77AABB01
+xid_request  = 0x77AABB02
+# option60_vci inherited from dhcp_windows_7 profile ("MSFT 5.0")
+emit_at_s    = 30.0
+
+[assets.acmect01.llmnr_response]
+emit_at_s = 30.0
+
+# ── 2.4 Windows 10 Peer — ACMEWS02 ───────────────────────────────────────────
+
+[assets.acmews02]
+hostname  = "ACMEWS02"
+category  = "workstation"
+mac_oui   = "60:a5:e2"
+mac       = "60:a5:e2:ae:32:1a"
+ip        = "10.10.10.41"
+notes     = "Windows 10 peer workstation"
+emits     = ["dhcp", "llmnr_response"]
+
+[assets.acmews02.dhcp]
+dhcp_profile = "dhcp_windows_10"
+xid_discover = 0x55EE0001
+xid_request  = 0x55EE0002
+emit_at_s    = 55.0
+
+[assets.acmews02.llmnr_response]
+emit_at_s = 55.0
+
+# ── 2.5 CC Platform — CCPLATFORM01 ───────────────────────────────────────────
+
+[assets.ccplatform01]
+hostname  = "CCPLATFORM01"
+category  = "workstation"
+mac_oui   = "00:09:5c"
+mac       = "00:09:5c:bb:cc:02"
+ip        = "10.10.20.20"
+notes     = "Philips Clinical Collaboration Platform 12.2.1 — CVE-2020-16247; cpe:2.3:a:philips:clinical_collaboration_platform:12.2.1"
+cve       = "CVE-2020-16247"
+cpe       = "cpe:2.3:a:philips:clinical_collaboration_platform:12.2.1:*:*:*:*:*:*:*"
+emits     = ["dhcp", "llmnr_response"]
+
+[assets.ccplatform01.dhcp]
+dhcp_profile = "dhcp_windows_10"
+xid_discover = 0x44DD0001
+xid_request  = 0x44DD0002
+emit_at_s    = 45.0
+
+[assets.ccplatform01.llmnr_response]
+emit_at_s = 45.0
+
+# ── 2.6 PACS Archive Server — PACSARCH01 ─────────────────────────────────────
+
+[assets.pacsarch01]
+hostname  = "PACSARCH01"
+category  = "server"
+mac_oui   = "00:50:56"
+mac       = "00:50:56:8b:ca:fe"
+ip        = "10.10.20.30"
+notes     = "PACS archive server (VMware VM)"
+emits     = ["dhcp", "llmnr_response"]
+
+[assets.pacsarch01.dhcp]
+dhcp_profile = "dhcp_windows_10"
+xid_discover = 0x66FF0001
+xid_request  = 0x66FF0002
+emit_at_s    = 65.0
+
+[assets.pacsarch01.llmnr_response]
+emit_at_s = 65.0
+
+# ── 2.7 DHCP Server ──────────────────────────────────────────────────────────
+
+[assets.dhcp_server]
+hostname  = ""         # server never acts as DHCP client; hostname observed = null
+category  = "infrastructure"
+mac_oui   = "00:50:56"
+mac       = "00:50:56:8b:dc:01"
+ip        = "10.10.20.7"
+notes     = "DHCP/DNS server (VMware VM) — emits only OFFER/ACK, never DISCOVER/REQUEST"
+emits     = []
+
+# ── 2.8 Gateway / Firewall ────────────────────────────────────────────────────
+
+[assets.gateway]
+hostname  = ""         # gateway never sends DHCP option 12
+category  = "firewall"
+mac_oui   = "00:1b:17"
+mac       = "00:1b:17:00:01:11"
+ip        = "10.10.20.1"
+notes     = "Palo Alto Networks firewall — L2 relay for external TLS flows"
+emits     = []
+
+# ── Flows ─────────────────────────────────────────────────────────────────────
+# Multi-host packet exchanges (hybrid model — solo signals declared above per-asset)
+# (REQ-PRE-002: pre-resolved TCP flag values not needed here as they are
+#  protocol constants embedded in the emitter code, not signaturable values)
+
+# ── Brilliance iCT → CCPlatform DICOM exchange ───────────────────────────────
+
+[[flows]]
+type          = "arp_exchange"
+requester     = "brilliance_ict"
+responder     = "ccplatform01"
+emit_at_s     = 15.0
+
+[[flows]]
+type                   = "dicom_associate_and_cstore"
+client                 = "brilliance_ict"
+server                 = "ccplatform01"
+emit_at_s              = 15.0
+client_port            = 49152
+server_port            = 104
+called_ae              = "CCPLATFORM"
+calling_ae             = "CT9999999"
+client_impl_class_uid  = "1.3.46.670589.30.36.0"
+client_impl_version    = "PMS_ELEVA_416"
+server_impl_class_uid  = "1.3.46.670589.40.12.2.1"
+server_impl_version    = "PMS_ELEVA_CCP12"
+abstract_syntax        = "1.2.840.10008.5.1.4.1.1.2"   # CT Image Storage
+transfer_syntax        = "1.2.840.10008.1.2.1"          # Explicit VR Little Endian
+max_pdu                = 16382
+message_id             = 1337
+sop_instance_uid       = "1.2.840.113704.1.7.1.0.1234567890.1"
+dataset_patient_name   = "SYNTH^POC"
+dataset_modality       = "CT"
+dataset_manufacturer   = "Philips"
+dataset_model          = "Brilliance iCT"
+dataset_software_versions = ["4.1.6"]
+
+# ── ACMECT01 Win7 console flows (all at emit_at_s = 30.0) ────────────────────
+
+[[flows]]
+type      = "llmnr_query"
+client    = "acmect01"
+qname     = "DC1.acmehosp.local"
+emit_at_s = 30.0
+
+[[flows]]
+type      = "llmnr_query"
+client    = "acmect01"
+qname     = "PACSARCH01"
+emit_at_s = 30.0
+
+[[flows]]
+type      = "arp_exchange"
+requester = "acmect01"
+responder = "pacsarch01"
+emit_at_s = 30.0
+
+[[flows]]
+type        = "tcp_syn"
+client      = "acmect01"
+server      = "pacsarch01"
+emit_at_s   = 30.0
+client_port = 49301
+server_port = 445
+tcp_profile = "tcp_syn_win7"
+
+[[flows]]
+type      = "arp_exchange"
+requester = "acmect01"
+responder = "gateway"
+emit_at_s = 30.0
+
+[[flows]]
+type           = "tls_client_hello"
+client         = "acmect01"
+server_ip      = "52.94.231.50"
+server_mac_via = "gateway"
+emit_at_s      = 30.0
+client_port    = 49302
+sni            = "usea1-016.sentinelone.net"
+
+[[flows]]
+type           = "tls_client_hello"
+client         = "acmect01"
+server_ip      = "20.42.65.92"
+server_mac_via = "gateway"
+emit_at_s      = 30.0
+client_port    = 49303
+sni            = "events.data.microsoft.com"
+
+[[flows]]
+type             = "smb2_negotiate"
+client           = "acmect01"
+server           = "pacsarch01"
+emit_at_s        = 30.0
+client_port      = 49304
+client_guid_hex  = "a1b2c3d4e5f6708190a0b0c0d0e0f101"
+dialects         = [0x0202, 0x0210]
+
+[[flows]]
+type                 = "smb2_session_setup_ntlmssp"
+client               = "acmect01"
+server               = "pacsarch01"
+emit_at_s            = 30.0
+client_port          = 49306
+domain               = "ACMEHOSP"
+username             = "ctop"
+server_challenge_hex = "0123456789abcdef"
+version_hex          = "0601b11d0000000f"   # Win 6.1 SP1 build 7601
+
+[[flows]]
+type      = "arp_exchange"
+requester = "acmect01"
+responder = "acmews02"
+emit_at_s = 30.0
+
+[[flows]]
+type        = "tcp_syn"
+client      = "acmect01"
+server      = "acmews02"
+emit_at_s   = 30.0
+client_port = 49305
+server_port = 7680
+tcp_profile = "tcp_syn_win7"
+
+# ── CCPLATFORM01 LLMNR query from ACMECT01 (emit at ccplatform scenario time) ─
+
+[[flows]]
+type      = "llmnr_query"
+client    = "acmect01"
+qname     = "CCPLATFORM01"
+emit_at_s = 45.0
+
+# ── ACMEWS02 LLMNR query from ACMECT01 (emit at acmews02 scenario time) ───────
+
+[[flows]]
+type      = "llmnr_query"
+client    = "acmect01"
+qname     = "ACMEWS02"
+emit_at_s = 55.0

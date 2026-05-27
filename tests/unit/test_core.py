@@ -144,6 +144,20 @@ class TestToCpeVendor:
         }
         assert to_cpe_vendor(env) == "philips"
 
+    def test_dicom_philips_uid_nested(self):
+        env = {
+            "pipeline_3": {
+                "dicom_association": [
+                    {
+                        "dicom_association": {
+                            "implementation_class_uid": "1.3.46.670589.40.12.2.1",
+                        }
+                    }
+                ]
+            }
+        }
+        assert to_cpe_vendor(env) == "philips"
+
     def test_dhcp_msft(self):
         env = {"pipeline_3": {"dhcp": [{"option60_vendor_class": "MSFT 5.0"}]}}
         assert to_cpe_vendor(env) == "microsoft"
@@ -161,6 +175,36 @@ class TestToDeviceClass:
     def test_dicom_modality_ct(self):
         env = {"pipeline_3": {"dicom_association": [{"dicom_modality": "CT"}]}}
         assert to_device_class(env) == "CT"
+
+    def test_dicom_modality_ct_nested(self):
+        env = {
+            "pipeline_3": {
+                "dicom_association": [
+                    {
+                        "dicom_association": {
+                            "dicom_modality": "CT",
+                            "pdu_type_byte": "04",
+                        }
+                    }
+                ]
+            }
+        }
+        assert to_device_class(env) == "CT"
+
+    def test_dicom_assoc_ac_pacs_nested(self):
+        env = {
+            "pipeline_3": {
+                "dicom_association": [
+                    {
+                        "dicom_association": {
+                            "pdu_type_byte": "02",
+                        }
+                    }
+                ],
+                "dhcp": [{"option60_vendor_class": "MSFT 5.0"}],
+            }
+        }
+        assert to_device_class(env) == "pacs"
 
     def test_ws_discovery_patient_monitor(self):
         env = {"ws_series_code": "BH"}

@@ -3,6 +3,14 @@ from __future__ import annotations
 from tapirxl.parser._helpers import _base_record, _safe
 
 
+def _ntlmssp_field(source, *names: str) -> str:
+    for name in names:
+        v = _safe(source, name, "")
+        if v:
+            return str(v).strip()
+    return ""
+
+
 def handle(packet, oui_table: dict) -> dict | None:
     if not hasattr(packet, "smb2"):
         return None
@@ -35,34 +43,52 @@ def handle(packet, oui_table: dict) -> dict | None:
 
 def handle_ntlmssp(packet, oui_table: dict) -> dict | None:
     """Surface NTLMSSP CHALLENGE / AUTHENTICATE fields when SMB2 carries them."""
-    if not hasattr(packet, "ntlmssp"):
+    nt = getattr(packet, "ntlmssp", None)
+    smb = getattr(packet, "smb2", None)
+    if nt is None and smb is None:
         return None
-    nt = packet.ntlmssp
 
-    workstation = _safe(nt, "auth_hostname", "") or _safe(nt, "ntlmssp_auth_hostname", "") or ""
-    username = _safe(nt, "auth_username", "") or _safe(nt, "ntlmssp_auth_username", "") or ""
-    domain = _safe(nt, "auth_domain", "") or _safe(nt, "ntlmssp_auth_domain", "") or ""
-    target_name = _safe(nt, "challenge_target_name", "") or _safe(nt, "target_name", "") or ""
-
+    sources = [s for s in (nt, smb) if s is not None]
+    workstation = ""
+    username = ""
+    domain = ""
+    target_name = ""
     target_computer = ""
-    for av_attr in (
-        "challenge_target_info_item_nb_computer_name",
-        "ntlmssp_challenge_target_info_nb_computer_name",
-        "ntlmssp_target_name",
-    ):
-        v = _safe(nt, av_attr, "")
-        if v:
-            target_computer = v
-            break
     target_domain = ""
-    for av_attr in (
-        "challenge_target_info_item_nb_domain_name",
-        "ntlmssp_challenge_target_info_nb_domain_name",
-    ):
-        v = _safe(nt, av_attr, "")
-        if v:
-            target_domain = v
-            break
+    for source in sources:
+        workstation = workstation or _ntlmssp_field(
+            source,
+            "auth_hostname",
+            "ntlmssp_auth_hostname",
+            "negotiate_callingworkstation",
+            "ntlmssp_negotiate_callingworkstation",
+        )
+        username = username or _ntlmssp_field(source, "auth_username", "ntlmssp_auth_username")
+        domain = domain or _ntlmssp_field(
+            source,
+            "auth_domain",
+            "ntlmssp_auth_domain",
+            "negotiate_domain",
+            "ntlmssp_negotiate_domain",
+        )
+        target_name = target_name or _ntlmssp_field(
+            source, "challenge_target_name", "target_name", "ntlmssp_target_name"
+        )
+        for av_attr in (
+            "challenge_target_info_item_nb_computer_name",
+            "ntlmssp_challenge_target_info_nb_computer_name",
+            "ntlmssp_target_name",
+        ):
+            v = _ntlmssp_field(source, av_attr)
+            if v:
+                target_computer = target_computer or v
+        for av_attr in (
+            "challenge_target_info_item_nb_domain_name",
+            "ntlmssp_challenge_target_info_nb_domain_name",
+        ):
+            v = _ntlmssp_field(source, av_attr)
+            if v:
+                target_domain = target_domain or v
 
     if not any([workstation, username, domain, target_computer, target_name]):
         return None
@@ -71,11 +97,11 @@ def handle_ntlmssp(packet, oui_table: dict) -> dict | None:
     if not rec:
         return None
     rec["raw_fields"] = {
-        "ntlmssp_auth_workstation": str(workstation).strip(),
-        "ntlmssp_auth_username": str(username).strip(),
-        "ntlmssp_auth_domain": str(domain).strip(),
-        "ntlmssp_target_name": str(target_name).strip(),
-        "ntlmssp_target_nb_computer_name": str(target_computer).strip(),
-        "ntlmssp_target_nb_domain_name": str(target_domain).strip(),
+        "ntlmssp_auth_workstation": workstation,
+        "ntlmssp_auth_username": username,
+        "ntlmssp_auth_domain": domain,
+        "ntlmssp_target_name": target_name,
+        "ntlmssp_target_nb_computer_name": target_computer,
+        "ntlmssp_target_nb_domain_name": target_domain,
     }
     return rec

@@ -173,3 +173,69 @@ def _dicom_tag_value_explicit_vr_le(payload: bytes, group: int, element: int, vr
         return raw.decode("ascii", "replace").strip().strip("\x00").rstrip()
     except Exception:
         return ""
+
+
+def _parse_user_info_subitems(data: bytes) -> tuple[str, str]:
+    """Parse User-Information sub-items 0x52 (ImplClassUID) and 0x55 (ImplVersionName)."""
+    impl_uid = ""
+    impl_ver = ""
+    pos = 0
+    while pos + 4 <= len(data):
+        sub_type = data[pos]
+        sub_len = struct.unpack_from(">H", data, pos + 2)[0]
+        val_off = pos + 4
+        val_end = val_off + sub_len
+        if val_end > len(data):
+            break
+        val = data[val_off:val_end]
+        if sub_type == 0x52:
+            impl_uid = val.decode("ascii", "replace").strip("\x00").strip()
+        elif sub_type == 0x55:
+            impl_ver = val.decode("ascii", "replace").strip("\x00").strip()
+        pos = val_end
+    return impl_uid, impl_ver
+
+
+def _parse_dicom_user_info(pdu_bytes: bytes) -> tuple[str, str]:
+    """Extract Implementation Class UID and Version Name from A-ASSOC PDU User-Info."""
+    if len(pdu_bytes) < 6 or pdu_bytes[0] not in (0x01, 0x02):
+        return "", ""
+    pdu_len = struct.unpack_from(">I", pdu_bytes, 2)[0]
+    # A-ASSOC-RQ/AC fixed fields end before variable items (PS3.8 §9.3.3).
+    pos = 74
+    end = min(6 + pdu_len, len(pdu_bytes))
+    while pos + 4 <= end:
+        item_type = pdu_bytes[pos]
+        item_len = struct.unpack_from(">H", pdu_bytes, pos + 2)[0]
+        item_data = pdu_bytes[pos + 4 : pos + 4 + item_len]
+        if item_type == 0x50:
+            return _parse_user_info_subitems(item_data)
+        pos += 4 + item_len
+    return _scan_dicom_user_info_subitems(pdu_bytes)
+
+
+def _scan_dicom_user_info_subitems(pdu_bytes: bytes) -> tuple[str, str]:
+    """Fallback scan for User-Info sub-items when structured walk misses."""
+    impl_uid = ""
+    impl_ver = ""
+    pos = 0
+    while pos + 4 <= len(pdu_bytes):
+        sub_type = pdu_bytes[pos]
+        if sub_type not in (0x52, 0x55) or pdu_bytes[pos + 1] != 0x00:
+            pos += 1
+            continue
+        sub_len = struct.unpack_from(">H", pdu_bytes, pos + 2)[0]
+        val_off = pos + 4
+        val_end = val_off + sub_len
+        if val_end > len(pdu_bytes) or sub_len > 128:
+            pos += 1
+            continue
+        val = pdu_bytes[val_off:val_end]
+        if sub_type == 0x52:
+            candidate = val.decode("ascii", "replace").strip("\x00").strip()
+            if candidate.startswith("1."):
+                impl_uid = candidate
+        elif sub_type == 0x55:
+            impl_ver = val.decode("ascii", "replace").strip("\x00").strip()
+        pos = val_end
+    return impl_uid, impl_ver
