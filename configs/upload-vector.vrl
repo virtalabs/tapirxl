@@ -30,6 +30,7 @@ if is_string(.message) {
 }
 
 vendor_display = {
+  "gehealthcare":      "GE Healthcare",
   "intel":             "Intel",
   "microsoft":         "Microsoft",
   "paloaltonetworks":  "Palo Alto Networks",
@@ -38,7 +39,9 @@ vendor_display = {
 }
 
 product_display = {
+  "brightspeed_elite_select":        "BrightSpeed Elite Select",
   "brilliance_ict":                  "Brilliance iCT",
+  "centricity_pacs_iw":              "Centricity PACS IW",
   "clinical_collaboration_platform": "Clinical Collaboration Platform",
   "intellivue_mx700":                "IntelliVue MX700",
   "pan_os":                          "PAN-OS",
@@ -58,12 +61,22 @@ if .hostname != null {
 
 if .vendor != null {
   vendor_slug = string!(.vendor)
-  out.manufacturer = get(vendor_display, [vendor_slug]) ?? vendor_slug
+  vendor_label, vendor_err = get(vendor_display, [vendor_slug])
+  if vendor_err == null && vendor_label != null {
+    out.manufacturer = vendor_label
+  } else {
+    out.manufacturer = vendor_slug
+  }
 }
 
 if .product != null {
   product_slug = string!(.product)
-  out.product = get(product_display, [product_slug]) ?? product_slug
+  product_label, product_err = get(product_display, [product_slug])
+  if product_err == null && product_label != null {
+    out.model = product_label
+  } else {
+    out.model = product_slug
+  }
 }
 
 if .version != null {
