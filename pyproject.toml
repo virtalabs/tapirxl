@@ -1,6 +1,7 @@
 [project]
 name = "tapirxl"
 version = "0.3.1"
+license = { text = "GNU General Public License v3.0" }
 requires-python = ">=3.14"
 dependencies = [
     # pyshark is strictly pinned because the golden regression test
@@ -13,9 +14,9 @@ dependencies = [
 ]
 
 [project.scripts]
-tapirxl          = "tapirxl.cli:app"
-tapirxl-parse    = "tapirxl.parser.cli:main"
-tapirxl-listen   = "tapirxl.parser.live_cli:main"
+tapirxl = "tapirxl.cli:app"
+tapirxl-parse = "tapirxl.parser.cli:main"
+tapirxl-listen = "tapirxl.parser.live_cli:main"
 tapirxl-fixtures = "tapirxl.fixtures.cli:main"
 
 [dependency-groups]
