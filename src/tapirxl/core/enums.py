@@ -12,6 +12,7 @@ CPE_VENDOR_ENUM: tuple[str, ...] = (
     "microsoft",
     "philips",
     "gehealthcare",
+    "sonosite",
     "vmware",
     "paloaltonetworks",
     "intel",
@@ -26,6 +27,8 @@ CPE_PRODUCT_ENUM: tuple[str, ...] = (
     "brightspeed_elite_select",
     "clinical_collaboration_platform",
     "centricity_pacs_iw",
+    "edge",
+    "edge_ii",
     "pan_os",
 )
 
@@ -60,6 +63,13 @@ CPE_VENDOR_OUI_MAP: list[tuple[str, str]] = [
 ]
 
 DICOM_MODALITY_ENUM: frozenset[str] = frozenset({"CT", "MR", "US", "CR", "DX", "MG", "NM", "PT"})
+
+_DICOM_US_SOP_CLASS_UIDS: frozenset[str] = frozenset(
+    {
+        "1.2.840.10008.5.1.4.1.1.6.1",
+        "1.2.840.10008.5.1.4.1.1.3.1",
+    }
+)
 
 
 # ── Envelope helper accessors (pure dict → value) ─────────────────────────────
@@ -131,6 +141,8 @@ def to_cpe_vendor(env: dict) -> str | None:
         return "philips"
     if "ge healthcare" in promoted_man or promoted_man == "ge":
         return "gehealthcare"
+    if "sonosite" in promoted_man:
+        return "sonosite"
 
     for assoc in _env_dicom_assoc_results(env):
         payload = _dicom_assoc_payload(assoc)
@@ -145,11 +157,15 @@ def to_cpe_vendor(env: dict) -> str | None:
             return "philips"
         if "ge healthcare" in man or man == "ge":
             return "gehealthcare"
+        if "sonosite" in man:
+            return "sonosite"
         uid = (payload.get("implementation_class_uid") or "").lower()
         if uid.startswith("1.2.840.113619."):
             return "gehealthcare"
         if uid.startswith("1.3.46."):
             return "philips"
+        if uid.startswith("1.2.840.114340."):
+            return "sonosite"
         if payload.get("philips_image_uid_arc_hits") or payload.get("image_uid_arc_counts", {}).get(
             "1.2.840.113704."
         ):
@@ -184,6 +200,8 @@ def to_cpe_vendor(env: dict) -> str | None:
     for needle, slug in CPE_VENDOR_OUI_MAP:
         if needle in oui:
             return slug
+    if "sonosite" in oui:
+        return "sonosite"
 
     return None
 
@@ -211,6 +229,16 @@ def to_cpe_product(env: dict) -> str | None:
             return "clinical_collaboration_platform"
         if impl_uid.startswith("1.3.46.670589.30"):
             return "brilliance_ict"
+        if impl_uid.startswith("1.2.840.114340.3"):
+            impl_ver = (payload.get("implementation_version_name") or "").lower()
+            if impl_ver == "tiller_sv500":
+                return "edge"
+            return "edge_ii"
+        impl_ver = (payload.get("implementation_version_name") or "").lower()
+        if impl_ver == "tiller_sv500":
+            return "edge"
+        if impl_ver.startswith("tiller_"):
+            return "edge_ii"
 
     vci = _env_dhcp_vci(env)
     fb_hits = [r.get("fingerbank_dhcp_hit") or "" for r in _env_dhcp_records(env)]
@@ -244,6 +272,17 @@ def to_cpe_product(env: dict) -> str | None:
     return None
 
 
+def _dicom_sop_class_modality(payload: dict) -> str | None:
+    for uid in payload.get("sop_class_uids_observed") or []:
+        if uid in _DICOM_US_SOP_CLASS_UIDS:
+            return "US"
+    for hint in payload.get("sop_class_hints") or []:
+        for uid in _DICOM_US_SOP_CLASS_UIDS:
+            if uid in hint:
+                return "US"
+    return None
+
+
 def to_device_class(env: dict) -> str | None:
     """Map envelope to a device_class string (DICOM Modality wins)."""
     promoted_modality = (env.get("dicom_modality") or "").strip().upper()
@@ -261,6 +300,9 @@ def to_device_class(env: dict) -> str | None:
         )
         if modality in DICOM_MODALITY_ENUM:
             return modality
+        sop_mod = _dicom_sop_class_modality(payload)
+        if sop_mod in DICOM_MODALITY_ENUM:
+            return sop_mod
 
     ws_series = env.get("ws_series_code") or (
         (env.get("pipeline_1") or {}).get("ws_discovery", {}).get("series_code_ascii")

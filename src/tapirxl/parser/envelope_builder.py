@@ -49,6 +49,7 @@ def make_empty_envelope(mac: str, oui_table: dict) -> dict:
         "dicom_modality": None,
         "dicom_manufacturer": None,
         "dicom_manufacturer_model": None,
+        "dicom_ae_calling": None,
         "expert_flags": [],
         "signal_count": 0,
         "floor_triggers": [],
@@ -225,6 +226,9 @@ def merge_record_into_envelope(env: dict, rec: dict) -> None:
             v = (assoc.get(assoc_key) or "").strip()
             if v and not env.get(env_key):
                 env[env_key] = v
+        calling_ae = (assoc.get("calling_ae_title") or "").strip()
+        if calling_ae and not env.get("dicom_ae_calling") and assoc.get("pdu_type_byte") == "01":
+            env["dicom_ae_calling"] = calling_ae
 
     elif proto == "DHCP":
         p3 = ensure_pipeline(env, "pipeline_3")

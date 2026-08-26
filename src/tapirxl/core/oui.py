@@ -27,6 +27,8 @@ OUI_FALLBACK: dict[str, str] = {
     "EC:86:31": "Siemens Healthineers (unverified)",
     # ── Spacelabs Medical ─────────────────────────────────────────────────────
     "00:A0:AA": "Spacelabs Medical",
+    # ── SonoSite (Fujifilm) ───────────────────────────────────────────────────
+    "00:08:FB": "SonoSite Inc.",
     # ── Virtualisation / hypervisor ───────────────────────────────────────────
     "00:50:56": "VMware",
     "00:0C:29": "VMware",
@@ -36,6 +38,7 @@ OUI_FALLBACK: dict[str, str] = {
     # ── Network infrastructure ────────────────────────────────────────────────
     "00:1B:17": "Palo Alto Networks",
     "98:90:96": "Dell",
+    "A4:BB:6D": "Dell Inc.",
     "00:A0:C9": "Intel",
     "00:1B:21": "Intel",
     "E8:D8:D1": "Intel",

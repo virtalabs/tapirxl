@@ -269,9 +269,14 @@ def _to_dicom_block(raw: dict) -> DicomAssociationBlock:
     for arc in image_uid_arc_hits:
         image_uid_arc_counts[arc] = image_uid_arc_counts.get(arc, 0) + 1
 
+    calling_ae = (assoc.get("calling_ae_title") or "").strip()
+    called_ae = (assoc.get("called_ae_title") or "").strip()
+
     return DicomAssociationBlock(
         implementation_class_uid=assoc.get("implementation_class_uid") or None,
         implementation_version_name=assoc.get("implementation_version_name") or None,
+        ae_titles_calling=[calling_ae] if calling_ae else [],
+        ae_titles_called=[called_ae] if called_ae else [],
         sop_classes_negotiated=list(assoc.get("sop_class_hints") or []),
         image_uid_arc_counts=image_uid_arc_counts,
         pdu_type_byte=assoc.get("pdu_type_byte") or None,

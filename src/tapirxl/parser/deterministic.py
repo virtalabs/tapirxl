@@ -129,6 +129,9 @@ def label_pipeline_3(env: dict) -> None:
     elif any("GE" in h for h in dicom_hints):
         label = "GE modality / DICOM-speaking device"
         conf = "HIGH"
+    elif any("SonoSite" in h for h in dicom_hints):
+        label = "SonoSite ultrasound / DICOM-speaking device"
+        conf = "HIGH"
     snmp_hits = [s.get("deterministic_descr_label") for s in p3.get("snmp_sysdescr") or []]
     snmp_hits = [s for s in snmp_hits if s]
     if snmp_hits and not label:

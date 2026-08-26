@@ -32,6 +32,12 @@ fixture-ct-pacs:
         --manifest src/tapirxl/fixtures/ct_to_pacs_scenario.toml \
         --output tests/fixtures/ct_to_pacs_scenario.pcap
 
+# Regenerate SonoSite ultrasound → Orthanc scenario PCAP
+fixture-sonosite:
+    uv run tapirxl fixtures \
+        --manifest src/tapirxl/fixtures/sonosite_us_scenario.toml \
+        --output tests/fixtures/sonosite_us_scenario.pcap
+
 # Parse PCAP → InventoryRecord JSONL (schema: schemas/inventory_record.schema.json)
 parse PCAP:
     uv run tapirxl parse {{PCAP}} --json
@@ -53,6 +59,12 @@ golden-regenerate:
     uv run tapirxl parse tests/fixtures/synthetic_philips_demo.pcap --json \
         | vector --quiet --config-toml configs/upload-vector.dryrun.toml \
         > tests/regression/golden_synthetic_philips_assets.jsonl
+
+golden-regenerate-sonosite:
+    uv run tapirxl parse tests/fixtures/sonosite_us_scenario.pcap \
+        > tests/regression/golden_sonosite_us_envelope.jsonl
+    uv run tapirxl parse tests/fixtures/sonosite_us_scenario.pcap --json \
+        > tests/regression/golden_sonosite_us_inventory.jsonl
 
 # Validate the Vector configs (no sockets, no daemon).
 # The two configs share a transform name, so they must be validated

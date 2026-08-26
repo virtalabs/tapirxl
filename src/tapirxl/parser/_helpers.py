@@ -196,6 +196,21 @@ def _parse_user_info_subitems(data: bytes) -> tuple[str, str]:
     return impl_uid, impl_ver
 
 
+def _parse_a_assoc_ae_titles(pdu_bytes: bytes) -> tuple[str, str]:
+    """Return (calling_ae, called_ae) from A-ASSOCIATE-RQ fixed header.
+
+    Per PS3.8 §9.3.2 the fixed fields occupy bytes 0-73:
+      bytes 10-25: Called AE Title  (16 bytes, space-padded)
+      bytes 26-41: Calling AE Title (16 bytes, space-padded)
+    Returns empty strings when the PDU is not type 0x01 or is too short.
+    """
+    if len(pdu_bytes) < 42 or pdu_bytes[0] != 0x01:
+        return "", ""
+    called = pdu_bytes[10:26].decode("ascii", "replace").strip().strip("\x00")
+    calling = pdu_bytes[26:42].decode("ascii", "replace").strip().strip("\x00")
+    return calling, called
+
+
 def _parse_dicom_user_info(pdu_bytes: bytes) -> tuple[str, str]:
     """Extract Implementation Class UID and Version Name from A-ASSOC PDU User-Info."""
     if len(pdu_bytes) < 6 or pdu_bytes[0] not in (0x01, 0x02):

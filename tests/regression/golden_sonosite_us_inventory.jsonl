@@ -1,0 +1,2 @@
+{"hostname": "SONOSITE", "ip_address": "192.168.120.40", "mac_address": "00:08:FB:34:01:9A", "vendor": "sonosite", "product": "edge_ii", "version": "Tiller_SV1000", "device_class": "US", "open_ports": [], "confidence": "HIGH"}
+{"hostname": null, "ip_address": "192.168.120.20", "mac_address": "A4:BB:6D:76:3F:22", "vendor": null, "product": null, "version": "OFFIS_DCMTK_362", "device_class": "US", "open_ports": [], "confidence": "HIGH"}

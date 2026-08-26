@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 
 # Build Literal types from enum tuples at import time.
 _VendorLiteral = Literal[  # type: ignore[valid-type]
-    "microsoft", "philips", "gehealthcare", "vmware", "paloaltonetworks", "intel"
+    "microsoft", "philips", "gehealthcare", "sonosite", "vmware", "paloaltonetworks", "intel"
 ]
 _ProductLiteral = Literal[  # type: ignore[valid-type]
     "windows_7",
@@ -23,6 +23,8 @@ _ProductLiteral = Literal[  # type: ignore[valid-type]
     "brightspeed_elite_select",
     "clinical_collaboration_platform",
     "centricity_pacs_iw",
+    "edge",
+    "edge_ii",
     "pan_os",
 ]
 _DeviceClassLiteral = Literal[  # type: ignore[valid-type]

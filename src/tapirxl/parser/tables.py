@@ -49,6 +49,8 @@ DICOM_IMPL_UID_ARCS: dict[str, str] = _load_json(  # type: ignore[assignment]
         "1.3.12.2.1107.": "Siemens Healthineers",
         "1.2.840.113619.": "GE Healthcare",
         "1.2.276.0.7230010.3.": "OFFIS DCMTK",
+        "1.2.840.114340.3.": "SonoSite ultrasound",
+        "1.2.840.114340.": "SonoSite Inc.",
     },
 )
 
@@ -133,8 +135,9 @@ DISPLAY_FILTER: str = (
     "kerberos or "
     "dns or "
     "(tcp.port == 22) or "
-    "(tcp.port == 104 or tcp.port == 2104 or tcp.port == 2762 "
-    "or tcp.srcport == 104 or tcp.srcport == 2104 or tcp.srcport == 2762) or "
+    "(tcp.port == 104 or tcp.port == 2104 or tcp.port == 2762 or tcp.port == 4242 "
+    "or tcp.srcport == 104 or tcp.srcport == 2104 or tcp.srcport == 2762 "
+    "or tcp.srcport == 4242) or "
     "dhcp or dhcpv6 or "
     '(tcp.payload contains "MSH|") or '
     "snmp or "

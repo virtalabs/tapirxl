@@ -73,6 +73,7 @@ def _derive_hostname(envelope: dict) -> str | None:
         "ntlmssp_target_computer",
         "ntlmssp_workstation",
         "mdns_hostname",
+        "dicom_ae_calling",
     ):
         v = envelope.get(key)
         if v:
@@ -91,6 +92,9 @@ def _derive_version(envelope: dict) -> str | None:
         sv = (sv or "").strip()
         if sv:
             return sv
+        impl_ver = (payload.get("implementation_version_name") or "").strip()
+        if impl_ver:
+            return impl_ver
     txt = envelope.get("mdns_txt_parsed") or {}
     if isinstance(txt, dict):
         for key in ("firmware", "fw_version", "version", "sw_version", "swversion"):

@@ -82,7 +82,12 @@ def packet_to_records(packet: object, oui_table: dict) -> list[dict]:
             dstp = str(_safe(packet.tcp, "dstport") or "")
             sportp = str(_safe(packet.tcp, "srcport") or "")
             _push(emits, tcp_syn.handle(packet, oui_table))
-            if dstp in ("104", "2104", "2762") or sportp in ("104", "2104", "2762"):
+            if dstp in ("104", "2104", "2762", "4242") or sportp in (
+                "104",
+                "2104",
+                "2762",
+                "4242",
+            ):
                 _push(emits, dicom.handle(packet, oui_table))
             _push(emits, ssh.handle(packet, oui_table))
             _push(emits, hl7.handle(packet, oui_table))

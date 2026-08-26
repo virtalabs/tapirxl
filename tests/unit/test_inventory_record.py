@@ -127,6 +127,52 @@ class TestEnumConstraints:
         assert rec["confidence"] == "LOW"
 
 
+class TestSonositeInventoryMapping:
+    def test_sonosite_vendor_product_and_us_modality(self, schema: dict) -> None:
+        allowed_vendor = _enum_for(schema, "vendor")
+        allowed_product = _enum_for(schema, "product")
+        allowed_device = _enum_for(schema, "device_class")
+
+        env = make_empty_envelope("00:08:fb:34:01:9a", oui_table={"00:08:FB": "SonoSite Inc."})
+        env["pipeline_3"] = {
+            "dicom_association": [
+                {
+                    "dicom_association": {
+                        "implementation_class_uid": "1.2.840.114340.3",
+                        "implementation_version_name": "Tiller_SV1000",
+                        "sop_class_uids_observed": ["1.2.840.10008.5.1.4.1.1.6.1"],
+                        "dicom_modality": "US",
+                        "dicom_manufacturer": "SonoSite",
+                    }
+                }
+            ]
+        }
+
+        rec = build_jsonl_record(env, fused=None, no_llm=True)
+        assert rec["vendor"] in allowed_vendor
+        assert rec["product"] in allowed_product
+        assert rec["device_class"] in allowed_device
+        assert rec["vendor"] == "sonosite"
+        assert rec["product"] == "edge_ii"
+        assert rec["device_class"] == "US"
+
+    def test_us_modality_from_sop_class_uid_fallback(self, schema: dict) -> None:
+        allowed_device = _enum_for(schema, "device_class")
+        env = _bare_envelope()
+        env["pipeline_3"] = {
+            "dicom_association": [
+                {
+                    "dicom_association": {
+                        "sop_class_uids_observed": ["1.2.840.10008.5.1.4.1.1.3.1"],
+                    }
+                }
+            ]
+        }
+        rec = build_jsonl_record(env, fused=None, no_llm=True)
+        assert rec["device_class"] in allowed_device
+        assert rec["device_class"] == "US"
+
+
 class TestOpenPortsDerivation:
     def test_ws_discovery_adds_3702(self) -> None:
         env = _bare_envelope()
@@ -170,6 +216,19 @@ class TestHostnameDerivation:
         env["mdns_hostname"] = "only-mdns.local"
         rec = build_jsonl_record(env, fused=None, no_llm=True)
         assert rec["hostname"] == "only-mdns.local"
+
+    def test_dicom_ae_calling_fallback(self) -> None:
+        env = _bare_envelope()
+        env["dicom_ae_calling"] = "SONOSITE"
+        rec = build_jsonl_record(env, fused=None, no_llm=True)
+        assert rec["hostname"] == "SONOSITE"
+
+    def test_dicom_ae_calling_does_not_override_dhcp(self) -> None:
+        env = _bare_envelope()
+        env["dhcp_hostname"] = "via-dhcp"
+        env["dicom_ae_calling"] = "SONOSITE"
+        rec = build_jsonl_record(env, fused=None, no_llm=True)
+        assert rec["hostname"] == "via-dhcp"
 
 
 class TestVersionDerivation:

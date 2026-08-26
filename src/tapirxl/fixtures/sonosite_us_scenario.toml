@@ -1,0 +1,92 @@
+# schema_version = 1
+# generator: hand-authored minimal scenario
+# purpose: SonoSite ultrasound SCU → Orthanc DICOM SCP on TCP 4242
+#          two clinical assets only — no WS-Discovery / ARP / SMB2 / TLS
+#
+# CPE anchors:
+#   cpe:2.3:h:sonosite:sonosite_ultrasound:-:*:*:*:*:*:*:*
+
+[meta]
+schema_version = 1
+manifest_id    = "sonosite_us_v1"
+created_at     = 2026-06-17T00:00:00Z
+
+[scenario]
+domain              = "SONOSITEUS"
+pcap_base_timestamp = "2026-06-17T09:44:32Z"
+intra_flow_step_s   = 0.00001
+
+[scenario.network]
+dhcp_server_slug = "dhcp_stub"
+gateway_slug     = "gateway_stub"
+dns_server_ip    = "192.168.120.254"
+subnet_mask      = "255.255.255.0"
+
+[profiles]
+
+# ── SonoSite ultrasound SCU (DICOM client) ────────────────────────────────────
+
+[assets.sonosite_us]
+hostname  = ""
+category  = "ultrasound"
+mac_oui   = "00:08:fb"
+mac       = "00:08:fb:34:01:9a"
+ip        = "192.168.120.40"
+notes     = "SonoSite ultrasound (Tiller_SV1000 platform)"
+cpe       = "cpe:2.3:h:sonosite:sonosite_ultrasound:-:*:*:*:*:*:*:*"
+emits     = []
+
+# ── Orthanc DICOM SCP (software receiver on TCP 4242) ─────────────────────────
+
+[assets.orthanc_scp]
+hostname  = "RECEIVER"
+category  = "server"
+mac_oui   = "a4:bb:6d"
+mac       = "a4:bb:6d:76:3f:22"
+ip        = "192.168.120.20"
+notes     = "Orthanc DICOM SCP on Dell hardware"
+emits     = []
+
+# ── Schema placeholders (no traffic) ─────────────────────────────────────────
+
+[assets.dhcp_stub]
+hostname  = ""
+category  = "infrastructure"
+mac_oui   = "00:11:22"
+mac       = "00:11:22:33:44:55"
+ip        = "192.168.120.254"
+emits     = []
+
+[assets.gateway_stub]
+hostname  = ""
+category  = "firewall"
+mac_oui   = "00:aa:bb"
+mac       = "00:aa:bb:cc:dd:ee"
+ip        = "192.168.120.1"
+emits     = []
+
+# ── SonoSite → Orthanc DICOM exchange ────────────────────────────────────────
+
+[[flows]]
+type                      = "dicom_associate_and_cstore"
+client                    = "sonosite_us"
+server                    = "orthanc_scp"
+emit_at_s                 = 5.0
+client_port               = 49190
+server_port               = 4242
+called_ae                 = "RECEIVER"
+calling_ae                = "SONOSITE"
+client_impl_class_uid     = "1.2.840.114340.3"
+client_impl_version       = "Tiller_SV1000"
+server_impl_class_uid     = "1.2.276.0.7230010.3.0.2"
+server_impl_version       = "OFFIS_DCMTK_362"
+abstract_syntax           = "1.2.840.10008.5.1.4.1.1.6.1"   # Ultrasound Image Storage
+transfer_syntax           = "1.2.840.10008.1.2.1"            # Explicit VR Little Endian
+max_pdu                   = 1048576
+message_id                = 1
+sop_instance_uid          = "1.2.840.114340.3.8251052001154.3.20260617.82448.401"
+dataset_patient_name      = "SYNTH^POC"
+dataset_modality          = "US"
+dataset_manufacturer      = "SonoSite"
+dataset_model             = "SV1000"
+dataset_software_versions = ["Tiller_SV1000"]
