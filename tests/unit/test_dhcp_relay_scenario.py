@@ -5,10 +5,10 @@ capture sees each client message twice (client broadcast, relay copy) and each
 server reply twice (server -> relay, relay -> client). See the builder,
 tests/fixtures/build_dhcp_relay_scenario.py, for the frame layout.
 
-The xfail tests describe the correct behaviour and are strict: when a fix
-lands they XPASS and fail the run, so the marker must come off with the fix.
-  - docs/issues/dhcp-relay-attribution.md  (DHCP records keyed by chaddr)
-  - docs/issues/dhcp-client-identity.md    (option 53, yiaddr, hostname choice)
+Relay attribution (docs/issues/dhcp-relay-attribution.md) is fixed: DHCP
+records are keyed by chaddr. The remaining xfail is strict: when
+docs/issues/dhcp-client-identity.md (option 53, yiaddr, hostname choice) is
+fixed it XPASSes and fails the run, so its marker comes off with that fix.
 """
 
 from __future__ import annotations
@@ -20,6 +20,8 @@ import pytest
 from typer.testing import CliRunner
 
 from tapirxl.cli import app
+from tapirxl.parser.adapters.pyshark_source import PysharkSource
+from tapirxl.parser.extractors import dhcp as dhcp_extractor
 from tapirxl.schemas.envelope import HostEnvelope
 
 PCAP = Path(__file__).resolve().parents[1] / "fixtures/dhcp_relay_scenario.pcap"
@@ -68,25 +70,53 @@ def test_each_client_gets_its_own_hostname(inventory: dict[str, dict]) -> None:
 # ── Relay attribution (docs/issues/dhcp-relay-attribution.md) ────────────────
 
 
-@pytest.mark.xfail(strict=True, reason="relayed DHCP keyed by Ethernet source, not chaddr")
 def test_relay_router_gets_no_client_hostname(inventory: dict[str, dict]) -> None:
     router = inventory.get(ROUTER_MAC)
     assert router is None or router["hostname"] is None
 
 
-@pytest.mark.xfail(strict=True, reason="relayed DHCP keyed by Ethernet source, not chaddr")
 def test_no_host_carries_another_hosts_option12(envelopes: dict[str, HostEnvelope]) -> None:
     for mac, env in envelopes.items():
         own = {CLIENTS[mac][0]} if mac in CLIENTS else set()
         assert _option12(env) <= own, f"{mac} carries {_option12(env) - own}"
 
 
-@pytest.mark.xfail(strict=True, reason="relayed DHCP keyed by Ethernet source, not chaddr")
 def test_relayed_copies_credit_the_client(envelopes: dict[str, HostEnvelope]) -> None:
     # 2 client broadcasts + 2 relay copies + 2 server replies + 2 relayed replies
     for mac in CLIENTS:
         dhcp = envelopes[mac].pipeline_3.dhcp
         assert len(dhcp) == 8, f"{mac}: {len(dhcp)} DHCP records"
+
+
+# ── Extractor unit checks on the fixture's packets ───────────────────────────
+
+
+@pytest.fixture(scope="module")
+def records() -> list[dict]:
+    return [dhcp_extractor.handle(p, {}) for p in PysharkSource(str(PCAP)).packets()]
+
+
+def test_chaddr_read_from_current_tshark_dhcp_layer(records: list[dict]) -> None:
+    # Wireshark >= 3.0 names the dissector "dhcp"; the old "bootp" layer is gone.
+    pkt = next(iter(PysharkSource(str(PCAP)).packets()))
+    assert hasattr(pkt, "dhcp") and not hasattr(pkt, "bootp")
+    # Every frame, whoever sent it, is filed under its client.
+    assert {r["src_mac"].lower() for r in records} == set(CLIENTS)
+
+
+def test_relayed_and_server_frames_never_carry_sender_ip(records: list[dict]) -> None:
+    assert {r["src_ip"] for r in records} == {"0.0.0.0"}  # ciaddr: no lease held yet
+
+
+def test_fingerprint_only_from_client_messages(records: list[dict]) -> None:
+    prl = "1,3,6,12,15,28,42"
+    for r in records:
+        rf = r["raw_fields"]
+        if rf["dhcp_message_type"] in ("discover", "request"):
+            assert rf["option55_key_guess"] == prl
+        else:  # offer / ack: the server's option list is not the client's PRL
+            assert rf["option55_key_guess"] == ""
+            assert rf["option60_vendor_class"] == ""
 
 
 # ── Client identity from DHCP (docs/issues/dhcp-client-identity.md) ──────────

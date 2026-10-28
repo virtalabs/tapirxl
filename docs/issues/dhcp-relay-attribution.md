@@ -1,5 +1,6 @@
 # DHCP records from a relay agent are attributed to the relay, not the client
 
+**Status:** fixed on `fix/dhcp-relay-attribution`; see "Resolution" below.
 **Labels:** bug, parser, dhcp · **Affects:** `demo-v0.3.2`, `main` (f21e478), `spike/fingerbank-format` (8a6fe8c)
 
 ## Summary
@@ -85,8 +86,9 @@ with concurrency 1.
   - `test_no_host_carries_another_hosts_option12`
   - `test_relayed_copies_credit_the_client`
 - `test_each_client_gets_its_own_hostname` still passes.
-- The golden regressions (`tests/regression/test_golden*.py`) are unchanged:
-  their captures contain no relayed frames.
+- The inventory and BlueFlow-assets goldens are byte-identical. Only the
+  envelope golden changes, and only in `pipeline_3.dhcp`, because server
+  replies move from the server to their client (see "Resolution").
 - A unit test asserts `chaddr` is read from a current-tshark `dhcp` layer.
 
 ## Notes
@@ -95,3 +97,45 @@ with concurrency 1.
   replies. Crediting replies by `chaddr` fixes that in the same change.
 - This is unrelated to the 2026-10-26 Brookhaven fabric outage. That was a
   range issue.
+
+## Resolution
+
+Implemented in `parser/extractors/dhcp.py` and `parser/pipeline.py`.
+
+- **`handle()`** files every DHCP record under `chaddr`
+  (`packet.dhcp.hw_mac_addr`). Its IP is the client's own `ciaddr`, never the
+  relay's or server's address. Options 55 and 60 and the Fingerbank match are
+  taken only from client messages (BOOTREQUEST), so a server reply can't
+  fingerprint the client.
+- **New `sender()`:** emits a separate DHCP record for the frame's sender when
+  it isn't the client (a relay or server), keyed by its own MAC and IP, with no
+  client options. Without it, a DHCP server whose only traffic is replies would
+  vanish from the inventory. That happened to the golden capture's server
+  `00:50:56:8b:dc:01` until `sender()` was added.
+- **Goldens:** the golden capture has no relay, but it does have server
+  replies.
+  - The inventory and assets goldens are byte-identical.
+  - The envelope golden was regenerated, with exactly two kinds of change and
+    nothing else in any envelope:
+    - each client gains its 2 server replies (own option 12, no parameter list);
+    - the server's 12 DHCP blocks no longer carry the clients' hostnames.
+  - The old golden encoded this bug.
+- **Range check** (Brookhaven, 30 min of pcap01, 8,019 packets): `main` names
+  core-rtr and sw-idf2's management MAC `INFUSION-GW1`. The fix names neither,
+  and every client keeps its own hostname.
+- **Not done here:**
+  - the relay observation (`dhcp_relay: {giaddr, observed_by}`) would need a
+    schema field, so it's left for a follow-up;
+  - the lease address is `docs/issues/dhcp-client-identity.md`.
+
+## Related finding: encapsulated captures
+
+In `tapirxl parse` on a capture that still carries ERSPAN/GRE (for example a
+raw recording of a mirror session), `eth.src` is the **outer** header's: the
+switch that sent the tunnel. `main` therefore credits tunnelled traffic to the
+switch, and on the Brookhaven capture sw-idf2 got a pump server's hostname.
+
+This fix covers DHCP through `chaddr`. Other protocols in such captures would
+still be filed under the outer MAC. Live mode is unaffected when the sensor
+decapsulates, as Brookhaven's `cap0` does. Worth its own issue: use the
+innermost `eth` layer.
