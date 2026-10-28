@@ -23,6 +23,18 @@ def _dhcp_pretty_bundle(layer) -> str:
     return str(layer or "")[:16000]
 
 
+_MSG_TYPES = {
+    "1": "discover",
+    "2": "offer",
+    "3": "request",
+    "4": "decline",
+    "5": "ack",
+    "6": "nak",
+    "7": "release",
+    "8": "inform",
+}
+
+
 def _attribute_to_client(rec: dict, layer, oui_table: dict) -> bool:
     """File the record under the DHCP client (chaddr), not the frame's sender.
 
@@ -106,12 +118,23 @@ def handle(packet, oui_table: dict) -> dict | None:
         if mh_m:
             mh = (mh_m.group(1) or mh_m.group(2) or "").strip()
 
-    msg_type_m = re.search(
-        r"DHCP[^:]*:\s*(Discover|Request|Offer|ACK|Nak|Decline|Release|Inform)",
-        dump,
-        re.I,
-    )
-    msg_type = msg_type_m.group(1).lower() if msg_type_m else ""
+    # Option 53 from the dissector; the pretty-print regex only for layers that
+    # lack the field (tshark before 3.0's bootp).
+    msg_type = _MSG_TYPES.get(str(_safe(dhcp, "option_dhcp", "")), "") if dhcp else ""
+    if not msg_type:
+        msg_type_m = re.search(
+            r"DHCP[^:]*:\s*(Discover|Request|Offer|ACK|Nak|Decline|Release|Inform)",
+            dump,
+            re.I,
+        )
+        msg_type = msg_type_m.group(1).lower() if msg_type_m else ""
+
+    # The address a server hands the client (yiaddr): the client's own IP
+    # before it sends any packet from it.
+    lease = ""
+    if dhcp and msg_type in ("offer", "ack"):
+        yiaddr = _safe(dhcp, "ip_your", "") or ""
+        lease = yiaddr if yiaddr != "0.0.0.0" else ""
 
     fb_label = FINGERBANK_DHCP_55.get(prl_key, "") if prl_key else ""
 
@@ -130,21 +153,10 @@ def handle(packet, oui_table: dict) -> dict | None:
         "fingerbank_dhcp_hit": fb_label,
         "vendor_medical_hint": vc_match,
         "dhcp_message_type": msg_type,
+        "lease_yiaddr": lease,
         "dhcp_text_excerpt": dump[:6000],
     }
     return rec
-
-
-_MSG_TYPES = {
-    "1": "discover",
-    "2": "offer",
-    "3": "request",
-    "4": "decline",
-    "5": "ack",
-    "6": "nak",
-    "7": "release",
-    "8": "inform",
-}
 
 
 def sender(packet, oui_table: dict) -> dict | None:

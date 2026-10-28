@@ -285,6 +285,7 @@ def _to_dhcp_block(raw: dict) -> DhcpBlock:
         option12_hostname=raw.get("option12_hostname_hint") or None,
         param_request_list=raw.get("option55_key_guess") or None,
         fingerbank_dhcp_hit=raw.get("fingerbank_dhcp_hit") or None,
+        lease_yiaddr=raw.get("lease_yiaddr") or None,
     )
 
 

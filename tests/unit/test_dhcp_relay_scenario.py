@@ -5,10 +5,8 @@ capture sees each client message twice (client broadcast, relay copy) and each
 server reply twice (server -> relay, relay -> client). See the builder,
 tests/fixtures/build_dhcp_relay_scenario.py, for the frame layout.
 
-Relay attribution (docs/issues/dhcp-relay-attribution.md) is fixed: DHCP
-records are keyed by chaddr. The remaining xfail is strict: when
-docs/issues/dhcp-client-identity.md (option 53, yiaddr, hostname choice) is
-fixed it XPASSes and fails the run, so its marker comes off with that fix.
+Covers docs/issues/dhcp-relay-attribution.md (DHCP records keyed by chaddr)
+and docs/issues/dhcp-client-identity.md (option 53, yiaddr, hostname choice).
 """
 
 from __future__ import annotations
@@ -21,6 +19,11 @@ from typer.testing import CliRunner
 
 from tapirxl.cli import app
 from tapirxl.parser.adapters.pyshark_source import PysharkSource
+from tapirxl.parser.envelope_builder import (
+    finalize_envelope_from_records,
+    make_empty_envelope,
+    merge_record_into_envelope,
+)
 from tapirxl.parser.extractors import dhcp as dhcp_extractor
 from tapirxl.schemas.envelope import HostEnvelope
 
@@ -122,7 +125,69 @@ def test_fingerprint_only_from_client_messages(records: list[dict]) -> None:
 # ── Client identity from DHCP (docs/issues/dhcp-client-identity.md) ──────────
 
 
-@pytest.mark.xfail(strict=True, reason="leased address (yiaddr) is never recorded")
 def test_client_ip_is_its_leased_address(inventory: dict[str, dict]) -> None:
     for mac, (_, leased) in CLIENTS.items():
         assert inventory[mac]["ip_address"] == leased
+
+
+def test_message_type_from_option_53(records: list[dict]) -> None:
+    # Per client: discover, relayed discover, offer, relayed offer, then the
+    # same for request / ack (see the builder).
+    per_client = ["discover", "discover", "offer", "offer", "request", "request", "ack", "ack"]
+    assert [r["raw_fields"]["dhcp_message_type"] for r in records] == per_client * 2
+
+
+def test_lease_recorded_on_offer_and_ack_only(records: list[dict]) -> None:
+    for r in records:
+        rf, (_, leased) = r["raw_fields"], CLIENTS[r["src_mac"].lower()]
+        expected = leased if rf["dhcp_message_type"] in ("offer", "ack") else ""
+        assert rf["lease_yiaddr"] == expected
+
+
+# ── Envelope merge rules for DHCP (no pcap needed) ───────────────────────────
+
+
+def _dhcp_rec(msg: str, hostname: str = "", lease: str = "") -> dict:
+    return {
+        "src_ip": "0.0.0.0",
+        "src_mac": "AA:BB:CC:00:00:01",
+        "src_oui": "UNKNOWN",
+        "protocol": "DHCP",
+        "timestamp": 1.0,
+        "raw_fields": {
+            "dhcp_message_type": msg,
+            "option12_hostname_hint": hostname,
+            "lease_yiaddr": lease,
+        },
+    }
+
+
+def _merged(*recs: dict) -> dict:
+    env = make_empty_envelope("AA:BB:CC:00:00:01", {})
+    for r in recs:
+        merge_record_into_envelope(env, r)
+    return finalize_envelope_from_records(env)
+
+
+@pytest.mark.parametrize("msg", ["", "offer", "ack", "nak"])
+def test_non_client_or_unknown_type_never_names_the_host(msg: str) -> None:
+    assert _merged(_dhcp_rec(msg, hostname="NOT-MINE"))["dhcp_hostname"] is None
+
+
+@pytest.mark.parametrize("msg", ["discover", "request", "inform"])
+def test_client_messages_name_the_host(msg: str) -> None:
+    assert _merged(_dhcp_rec(msg, hostname="MINE"))["dhcp_hostname"] == "MINE"
+
+
+def test_latest_client_hostname_wins() -> None:
+    env = _merged(
+        _dhcp_rec("request", hostname="OLD-NAME"), _dhcp_rec("request", hostname="NEW-NAME")
+    )
+    assert env["dhcp_hostname"] == "NEW-NAME"
+
+
+def test_ack_lease_beats_offer_and_is_the_ip_fallback() -> None:
+    env = _merged(_dhcp_rec("offer", lease="10.0.0.5"), _dhcp_rec("ack", lease="10.0.0.6"))
+    assert env["ip"] == "10.0.0.6"
+    env = _merged(_dhcp_rec("ack", lease="10.0.0.6"), _dhcp_rec("offer", lease="10.0.0.7"))
+    assert env["ip"] == "10.0.0.6"  # a later offer does not displace an ACKed lease
