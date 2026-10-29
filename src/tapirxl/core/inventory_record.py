@@ -23,7 +23,7 @@ from tapirxl.core.enums import (
     to_device_class,
 )
 
-CONF_RANK: dict[str, int] = {"HIGH": 3, "MEDIUM": 2, "LOW": 1, "TRIAGE_ONLY": 1}
+CONF_RANK: dict[str, int] = {"HIGH": 3, "MEDIUM": 2, "LOW": 1}
 
 DNS_SD_PORT_MAP: dict[str, int] = {
     "_dicom._tcp": 104,
@@ -58,12 +58,25 @@ def _effective_inventory_conf(row: dict, fused: dict | None, no_llm: bool) -> st
     if routing == "DETERMINISTIC_FINAL":
         cons = (row.get("triage") or {}).get("deterministic_consensus") or {}
         return _filter_conf(str(cons.get("confidence", "HIGH")))
-    if routing == "STAMP_LOW":
-        return "LOW"
+    return rule_confidence(
+        row.get("signal_count") or 0,
+        row.get("floor_triggers") or [],
+        (row.get("triage") or {}).get("contradiction_codes") or [],
+    )
 
-    if row.get("signal_count") == 1 and not row.get("floor_triggers"):
-        return "LOW"
-    return "TRIAGE_ONLY"
+
+def rule_confidence(
+    signal_count: int, floor_triggers: list[str], contradiction_codes: list[str]
+) -> str:
+    """CLAUDE.md "Confidence rules", with signals = ``signal_count`` buckets."""
+    floor = bool(floor_triggers) and signal_count >= 1
+    if contradiction_codes:
+        return "MEDIUM" if signal_count >= 1 else "LOW"  # hard cap
+    if signal_count >= 3 or (signal_count >= 2 and floor):
+        return "HIGH"
+    if signal_count == 2 or floor:
+        return "MEDIUM"
+    return "LOW"
 
 
 def _derive_hostname(envelope: dict) -> str | None:
@@ -140,8 +153,6 @@ def build_jsonl_record(envelope: dict, fused: dict | None, *, no_llm: bool = Tru
     device_class = enum_or_none(to_device_class(envelope), DEVICE_CLASS_ENUM)
 
     conf = _effective_inventory_conf(envelope, fused, no_llm)
-    if conf == "TRIAGE_ONLY":
-        conf = "LOW"
 
     return {
         "hostname": _derive_hostname(envelope),
