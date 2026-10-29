@@ -295,3 +295,18 @@ class TestInventoryRecord:
                 mac_address="AA:BB:CC:DD:EE:FF",
                 confidence=None,
             )
+
+
+def test_ws_discovery_uuid_is_the_endpoint_not_the_message_id() -> None:
+    """#38: a spec-compliant Hello carries a random MessageID before the endpoint."""
+    from tapirxl.parser.extractors.ws_discovery import endpoint_uuid
+
+    hello = (
+        "<s:Header><wsa:MessageID>urn:uuid:4745aaaa-0000-4000-8000-000000000001</wsa:MessageID>"
+        "</s:Header><s:Body><wsd:Hello><wsa:EndpointReference>"
+        "<wsa:Address>urn:uuid:50484248-4332-3638-3631-0009fb500101</wsa:Address>"
+        "</wsa:EndpointReference></wsd:Hello></s:Body>"
+    )
+    probe = "<wsa:MessageID>urn:uuid:50480000-0000-4000-8000-000000000002</wsa:MessageID>"
+    assert endpoint_uuid(hello) == "50484248-4332-3638-3631-0009fb500101"
+    assert endpoint_uuid(probe) is None

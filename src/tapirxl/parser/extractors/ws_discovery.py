@@ -1,7 +1,16 @@
 from __future__ import annotations
 
+import re
+
 from tapirxl.parser._helpers import _base_record, _safe
 from tapirxl.parser.tables import UUID_PATTERN
+
+
+def endpoint_uuid(cdata: str) -> str | None:
+    """The device's UUID: EndpointReference/Address, never the header MessageID."""
+    m = re.search(r"<[^>]*Address[^>]*>\s*urn:uuid:([^<\s]+)", cdata, re.IGNORECASE)
+    u = m and UUID_PATTERN.fullmatch(m.group(1))
+    return u.group(0) if u else None
 
 
 def handle(packet, oui_table: dict) -> dict | None:
@@ -22,10 +31,7 @@ def handle(packet, oui_table: dict) -> dict | None:
     rec = _base_record(packet, oui_table, "WS_DISCOVERY")
     if not rec:
         return None
-    import re
-
-    m = UUID_PATTERN.search(cdata)
-    ws_uuid = m.group(0) if m else None
+    ws_uuid = endpoint_uuid(cdata)
     ws_vendor_prefix = ws_uuid[0:4].upper() if ws_uuid else None
     ws_series_code = None
     if ws_uuid:
