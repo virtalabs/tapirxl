@@ -13,7 +13,9 @@ from tapirxl.core.mac import normalize_mac
 from tapirxl.parser.deterministic import postprocess_pipeline_labels
 from tapirxl.parser.emit import render_envelope
 from tapirxl.parser.envelope_builder import (
+    credit_ip_owner,
     finalize_envelope_from_records,
+    learn_ip_owner,
     make_empty_envelope,
     merge_record_into_envelope,
 )
@@ -63,6 +65,7 @@ class LiveEmitter:
         self._clock = clock or time.monotonic
 
         self.hosts: dict[str, HostState] = {}
+        self._ip_owners: dict[str, str] = {}
         self._deadlines: list[tuple[float, int, str, str]] = []
         self._seq = 0
 
@@ -86,6 +89,10 @@ class LiveEmitter:
         self._schedule(mac, self.now() + self.heartbeat_secs, "heartbeat")
 
     def ingest_record(self, record: dict[str, Any]) -> None:
+        # ponytail: a routed copy seen before its sender's first ARP stays on
+        # the router; batch mode learns all owners first and has no such gap.
+        learn_ip_owner(record, self._ip_owners)
+        credit_ip_owner(record, self._ip_owners, self.oui_table)
         mac = normalize_mac(record.get("src_mac") or "")
         if not mac or mac in _NON_HOST_MACS:
             return

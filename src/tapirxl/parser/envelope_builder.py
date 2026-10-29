@@ -15,6 +15,34 @@ from tapirxl.parser.tables import (
 DHCP_CLIENT_MESSAGES = frozenset({"discover", "request", "inform"})
 
 
+def learn_ip_owner(rec: dict, owners: dict[str, str]) -> None:
+    """Record which MAC owns an IP: ARP sender (spa -> sha), or a DHCP ACK lease."""
+    rf = rec.get("raw_fields") or {}
+    if rec.get("protocol") == "ARP":
+        ip, mac = rf.get("spa"), rf.get("sha")
+    elif rec.get("protocol") == "DHCP" and rf.get("dhcp_message_type") == "ack":
+        ip, mac = rf.get("lease_yiaddr"), rec.get("src_mac")
+    else:
+        return
+    if ip and str(ip) != "0.0.0.0" and mac:
+        owners[str(ip)] = normalize_mac(str(mac))
+
+
+def credit_ip_owner(rec: dict, owners: dict[str, str], oui_table: dict) -> None:
+    """File a routed copy under the host that owns its source IP, not the router.
+
+    On a router-on-a-stick both legs of a routed packet cross the SPAN; the
+    second carries the router's eth.src with the sender's IP. ARP and DHCP
+    are already attributed by their own headers.
+    """
+    if rec.get("protocol") in ("ARP", "DHCP"):
+        return
+    owner = owners.get(str(rec.get("src_ip") or ""))
+    if owner and owner != normalize_mac(rec.get("src_mac") or ""):
+        rec["src_mac"] = owner
+        rec["src_oui"] = oui_lookup(owner, oui_table)
+
+
 def ensure_pipeline(envelope: dict, name: str) -> dict:
     if envelope.get(name) is None:
         envelope[name] = {}
