@@ -28,19 +28,30 @@ def learn_ip_owner(rec: dict, owners: dict[str, str]) -> None:
         owners[str(ip)] = normalize_mac(str(mac))
 
 
-def credit_ip_owner(rec: dict, owners: dict[str, str], oui_table: dict) -> None:
+def credit_ip_owner(rec: dict, owners: dict[str, str], oui_table: dict) -> bool:
     """File a routed copy under the host that owns its source IP, not the router.
 
     On a router-on-a-stick both legs of a routed packet cross the SPAN; the
     second carries the router's eth.src with the sender's IP. ARP and DHCP
     are already attributed by their own headers.
+
+    Returns False for a routed copy whose owner is not known yet: the frame's
+    MAC has claimed other IPs but not this one. The sender's own leg is
+    filed under the sender, so the copy is dropped rather than left on the
+    router (live mode sees such copies before the sender's first ARP).
     """
-    if rec.get("protocol") in ("ARP", "DHCP"):
-        return
-    owner = owners.get(str(rec.get("src_ip") or ""))
-    if owner and owner != normalize_mac(rec.get("src_mac") or ""):
+    ip = str(rec.get("src_ip") or "")
+    if rec.get("protocol") in ("ARP", "DHCP") or ip in ("", "0.0.0.0"):
+        return True
+    mac = normalize_mac(rec.get("src_mac") or "")
+    owner = owners.get(ip)
+    if owner is None:
+        # ponytail: linear scan of owners per record; index by MAC if hosts reach thousands.
+        return mac not in owners.values()
+    if owner != mac:
         rec["src_mac"] = owner
         rec["src_oui"] = oui_lookup(owner, oui_table)
+    return True
 
 
 def ensure_pipeline(envelope: dict, name: str) -> dict:

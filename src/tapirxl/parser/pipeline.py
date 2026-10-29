@@ -149,7 +149,8 @@ def build_signal_register(records: list[dict], oui_table: dict) -> list[dict]:
         learn_ip_owner(rec, owners)
     by_mac: dict[str, list[dict]] = defaultdict(list)
     for rec in records:
-        credit_ip_owner(rec, owners, oui_table)
+        if not credit_ip_owner(rec, owners, oui_table):
+            continue
         mac = normalize_mac(rec.get("src_mac") or "")
         if not mac:
             continue

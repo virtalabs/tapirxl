@@ -89,10 +89,9 @@ class LiveEmitter:
         self._schedule(mac, self.now() + self.heartbeat_secs, "heartbeat")
 
     def ingest_record(self, record: dict[str, Any]) -> None:
-        # ponytail: a routed copy seen before its sender's first ARP stays on
-        # the router; batch mode learns all owners first and has no such gap.
         learn_ip_owner(record, self._ip_owners)
-        credit_ip_owner(record, self._ip_owners, self.oui_table)
+        if not credit_ip_owner(record, self._ip_owners, self.oui_table):
+            return
         mac = normalize_mac(record.get("src_mac") or "")
         if not mac or mac in _NON_HOST_MACS:
             return

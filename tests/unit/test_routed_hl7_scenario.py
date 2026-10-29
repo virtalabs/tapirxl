@@ -75,7 +75,7 @@ def test_owner_learned_from_arp_and_dhcp_ack_only() -> None:
 
 
 def test_unbound_ip_and_dhcp_keep_their_mac() -> None:
-    owners = {"10.0.0.5": LAB_MAC.upper()}
+    owners = {"10.0.0.5": LAB_MAC.upper()}  # the router has claimed nothing
     for rec in (_rec("HL7_MLLP", ROUTER_MAC, "10.0.0.9"), _rec("DHCP", ROUTER_MAC, "10.0.0.5")):
         credit_ip_owner(rec, owners, {})
         assert rec["src_mac"] == ROUTER_MAC
@@ -86,3 +86,19 @@ def test_live_mode_credits_the_owner() -> None:
     emitter.ingest_record(_rec("ARP", LAB_MAC, "10.0.0.5", spa="10.0.0.5", sha=LAB_MAC))
     emitter.ingest_record(_rec("HL7_MLLP", ROUTER_MAC, "10.0.0.5"))
     assert set(emitter.hosts) == {LAB_MAC.upper()}
+
+
+def test_live_drops_a_routed_copy_seen_before_its_owner() -> None:
+    """The router has claimed its own IPs, the sender has not ARPed yet."""
+    emitter = LiveEmitter({}, clock=lambda: 0.0)
+    emitter.ingest_record(_rec("ARP", ROUTER_MAC, "10.0.0.1", spa="10.0.0.1", sha=ROUTER_MAC))
+    emitter.ingest_record(_rec("HL7_MLLP", ROUTER_MAC, "10.0.0.5"))  # routed, owner unknown
+    emitter.ingest_record(_rec("SSH", ROUTER_MAC, "10.0.0.1"))  # the router's own
+    router = emitter.hosts[ROUTER_MAC.upper()].envelope
+    assert not router.get("pipeline_3")
+    assert router.get("pipeline_2") is not None
+
+
+def test_unclaimed_mac_keeps_its_records() -> None:
+    """A MAC that never ARPed is not known to be routing: nothing is dropped."""
+    assert credit_ip_owner(_rec("HL7_MLLP", LAB_MAC, "10.0.0.9"), {}, {})
