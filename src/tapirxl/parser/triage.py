@@ -95,12 +95,13 @@ def route_host(env: dict) -> None:
             {
                 "raw_value": t,
                 "source_protocol": "WS_DISCOVERY",
+                "source_pipeline": 1,
                 "field_path": "ws_types",
                 "candidate_labels": [
                     *list(PHILIPS_WS_TYPES_CANONICAL.values()),
                     "OTHER:KEEP_VERBATIM",
                 ],
-                "host_context": env.get("host_id", ""),
+                "host_context": {"host_id": env.get("host_id", "")},
             }
         )
     for entry in env.get("mdns_txt_raw", []):
@@ -110,10 +111,11 @@ def route_host(env: dict) -> None:
             {
                 "raw_value": entry,
                 "source_protocol": "MDNS_TXT",
+                "source_pipeline": 1,
                 "field_path": "mdns_txt_raw",
                 "candidate_labels": [v for _k, _nk, v in PHILIPS_MDNS_TXT_KEYWORDS]
                 + ["OTHER:KEEP_VERBATIM"],
-                "host_context": env.get("host_id", ""),
+                "host_context": {"host_id": env.get("host_id", "")},
             }
         )
 
