@@ -14,9 +14,7 @@ from tapirxl.fixtures.generator import generate_packets
 from tapirxl.fixtures.loader import load_signal_manifest
 from tapirxl.schemas.envelope import HostEnvelope
 
-MANIFEST = (
-    Path(__file__).resolve().parents[2] / "src/tapirxl/fixtures/ct_to_pacs_scenario.toml"
-)
+MANIFEST = Path(__file__).resolve().parents[2] / "src/tapirxl/fixtures/ct_to_pacs_scenario.toml"
 PCAP = Path(__file__).resolve().parents[1] / "fixtures/ct_to_pacs_scenario.pcap"
 
 GE_CT_MAC = "00:10:18:aa:bb:01"
@@ -39,11 +37,7 @@ def _parse_inventory(pcap: Path) -> list[dict]:
     runner = CliRunner()
     result = runner.invoke(app, ["parse", str(pcap), "--json"])
     assert result.exit_code == 0, result.output
-    return [
-        json.loads(line)
-        for line in result.output.splitlines()
-        if line.strip().startswith("{")
-    ]
+    return [json.loads(line) for line in result.output.splitlines() if line.strip().startswith("{")]
 
 
 def _host_by_id(envelopes: list[HostEnvelope], mac: str) -> HostEnvelope:
