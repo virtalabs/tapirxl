@@ -16,10 +16,7 @@ on:
 
 jobs:
   unit:
-    # ubuntu-latest moved to 26.04 (tshark 4.6.4), where tshark under pytest
-    # fails with "You don't have permission to read the file" on the fixtures.
-    # Pinned to 24.04 until that is understood; the demo image is Debian 12.
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
 
@@ -31,6 +28,18 @@ jobs:
         # Several tests use pyshark, which shells out to `tshark`. Match the
         # demo image (packaging/docker/demo/Dockerfile) which also bakes it in.
         run: sudo apt-get update && sudo apt-get install -y --no-install-recommends tshark
+
+      - name: Let tshark read capture files (Ubuntu 26.04 AppArmor)
+        # Ubuntu 26.04 ships an enforcing AppArmor profile for /usr/bin/tshark
+        # whose only *.pcap read rule is in its dumpcap child; `tshark -r` opens
+        # the file itself, so reads under $HOME fail with EACCES ("You don't
+        # have permission to read the file"). local/tshark is the profile's
+        # supported extension point. No-op where there is no tshark profile.
+        run: |
+          if [ -f /etc/apparmor.d/tshark ]; then
+            echo '/**.pcap{,ng}{,.gz} r,' | sudo tee /etc/apparmor.d/local/tshark
+            sudo apparmor_parser -r /etc/apparmor.d/tshark
+          fi
 
       - run: uv sync --dev
 
