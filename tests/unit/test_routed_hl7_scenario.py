@@ -123,9 +123,24 @@ def test_live_drops_a_routed_copy_seen_before_its_owner() -> None:
 
 
 def test_batch_agrees_with_live_on_the_same_records() -> None:
-    envs = {e["mac"]: e for e in build_signal_register(_router_then_routed_copy(), {})}
-    assert not envs[ROUTER_MAC.upper()].get("pipeline_3")  # dropped, as in live mode
-    assert not envs[LAB_MAC.upper()].get("pipeline_3")  # not re-credited from the future
+    batch = {e["mac"]: e for e in build_signal_register(_router_then_routed_copy(), {})}
+    emitter = LiveEmitter({}, clock=lambda: 0.0)
+    for r in _router_then_routed_copy():
+        emitter.ingest_record(r)
+    live = {mac: st.envelope for mac, st in emitter.hosts.items()}
+
+    def blocks(envs: dict) -> dict:
+        return {m: (bool(e.get("pipeline_2")), bool(e.get("pipeline_3"))) for m, e in envs.items()}
+
+    assert blocks(batch) == blocks(live)
+    assert not batch[LAB_MAC.upper()].get("pipeline_3")  # not re-credited from the future
+
+
+def test_live_drops_zero_mac_frames_even_with_a_known_owner() -> None:
+    emitter = LiveEmitter({}, clock=lambda: 0.0)
+    emitter.ingest_record(_arp(LAB_MAC, "10.0.0.5"))
+    emitter.ingest_record(_rec("HL7_MLLP", "00:00:00:00:00:00", "10.0.0.5"))
+    assert not emitter.hosts[LAB_MAC.upper()].envelope.get("pipeline_3")
 
 
 def test_a_host_using_an_unannounced_address_keeps_its_traffic() -> None:

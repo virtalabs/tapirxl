@@ -88,11 +88,15 @@ class LiveEmitter:
         self._schedule(mac, self.now() + self.heartbeat_secs, "heartbeat")
 
     def ingest_record(self, record: dict[str, Any]) -> None:
+        # Zero-MAC frames are dropped before owner crediting, so a known
+        # src_ip cannot re-file them under a host.
+        if not record.get("src_mac") or normalize_mac(record["src_mac"]) in _NON_HOST_MACS:
+            return
         self._ip_owners.learn(record)
         if not self._ip_owners.credit(record, self.oui_table):
             return
         mac = normalize_mac(record.get("src_mac") or "")
-        if not mac or mac in _NON_HOST_MACS:
+        if not mac:
             return
 
         now = self.now()
