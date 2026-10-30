@@ -96,3 +96,22 @@ class TestRouteHostSpecOrdering:
         route_host(env)
 
         assert env["triage"]["routing"] == "DETERMINISTIC_FINAL"
+
+
+def test_ambiguous_fields_serialize_into_the_envelope_schema() -> None:
+    """#35: unknown WS-D types and key-less mDNS TXT must not abort `tapirxl parse`."""
+    from tapirxl.parser.serialize import to_envelope
+
+    env = _bare_envelope()
+    env["signal_count"] = 2
+    env["ws_types"] = ["wsdp:Device"]
+    env["mdns_txt_raw"] = ["bare-token"]
+
+    route_host(env)
+
+    amb = to_envelope(env).lm_envelope.ambiguous_fields
+    assert [(a.source_protocol, a.source_pipeline) for a in amb] == [
+        ("WS_DISCOVERY", 1),
+        ("MDNS_TXT", 1),
+    ]
+    assert all(a.host_context == {"host_id": env["host_id"]} for a in amb)

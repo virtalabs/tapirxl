@@ -295,3 +295,35 @@ class TestInventoryRecord:
                 mac_address="AA:BB:CC:DD:EE:FF",
                 confidence=None,
             )
+
+
+def test_ws_discovery_uuid_is_the_endpoint_not_the_message_id() -> None:
+    """#38: a spec-compliant Hello carries a random MessageID before the endpoint."""
+    from tapirxl.parser.extractors.ws_discovery import endpoint_uuid
+
+    hello = (
+        "<s:Header><wsa:MessageID>urn:uuid:4745aaaa-0000-4000-8000-000000000001</wsa:MessageID>"
+        "</s:Header><s:Body><wsd:Hello><wsa:EndpointReference>"
+        "<wsa:Address>urn:uuid:50484248-4332-3638-3631-0009fb500101</wsa:Address>"
+        "</wsa:EndpointReference></wsd:Hello></s:Body>"
+    )
+    probe = "<wsa:MessageID>urn:uuid:50480000-0000-4000-8000-000000000002</wsa:MessageID>"
+    # A UUID-valued Address outside EndpointReference (ReplyTo) comes first.
+    reply_to_first = hello.replace(
+        "<s:Header>",
+        "<s:Header><wsa:ReplyTo><wsa:Address>urn:uuid:47450000-0000-4000-8000-000000000003"
+        "</wsa:Address></wsa:ReplyTo>",
+    )
+    no_endpoint_address = (
+        "<wsd:Hello><wsa:EndpointReference><wsa:ReferenceParameters/></wsa:EndpointReference>"
+        "<wsa:Address>urn:uuid:50484248-0000-4000-8000-000000000004</wsa:Address></wsd:Hello>"
+    )
+    assert endpoint_uuid(hello) == "50484248-4332-3638-3631-0009fb500101"
+    assert endpoint_uuid(reply_to_first) == "50484248-4332-3638-3631-0009fb500101"
+    assert endpoint_uuid(no_endpoint_address) is None
+    # Valid XML variants: whitespace before ">" in a closing tag, upper-case URN scheme.
+    spaced = hello.replace("</wsa:EndpointReference>", "</wsa:EndpointReference >")
+    upper = hello.replace("<wsa:Address>urn:uuid:", "<wsa:Address>URN:UUID:")
+    assert endpoint_uuid(spaced) == "50484248-4332-3638-3631-0009fb500101"
+    assert endpoint_uuid(upper) == "50484248-4332-3638-3631-0009fb500101"
+    assert endpoint_uuid(probe) is None

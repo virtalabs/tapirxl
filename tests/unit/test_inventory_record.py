@@ -118,13 +118,34 @@ class TestEnumConstraints:
         assert rec["confidence"] in allowed
         assert rec["confidence"] == "LOW"
 
-    def test_confidence_triage_only_maps_to_low(self) -> None:
-        """build_jsonl_record collapses TRIAGE_ONLY → LOW for schema fitness."""
+    def test_ambiguous_host_follows_the_confidence_rule(self) -> None:
+        """#36: a non-DETERMINISTIC_FINAL host is scored by the rule, not forced LOW."""
         env = _bare_envelope()
         env["signal_count"] = 3
         env["floor_triggers"] = ["MEDICAL_UUID_PREFIX"]
         rec = build_jsonl_record(env, fused=None, no_llm=True)
-        assert rec["confidence"] == "LOW"
+        assert rec["confidence"] == "HIGH"
+
+
+@pytest.mark.parametrize(
+    ("signals", "floor", "contra", "expected"),
+    [
+        (0, [], [], "LOW"),
+        (0, ["DICOM_VENDOR_ARC"], [], "LOW"),
+        (1, [], [], "LOW"),
+        (1, ["DICOM_VENDOR_ARC"], [], "MEDIUM"),
+        (2, [], [], "MEDIUM"),
+        (2, ["HL7_CLINICAL_INTERFACE"], [], "HIGH"),
+        (3, [], [], "HIGH"),
+        (5, ["MEDICAL_UUID_PREFIX"], ["C2"], "MEDIUM"),  # contradiction never yields HIGH
+        (1, [], ["C1"], "MEDIUM"),
+        (0, [], ["C1"], "LOW"),
+    ],
+)
+def test_rule_confidence(signals: int, floor: list, contra: list, expected: str) -> None:
+    from tapirxl.core.inventory_record import rule_confidence
+
+    assert rule_confidence(signals, floor, contra) == expected
 
 
 class TestOpenPortsDerivation:
