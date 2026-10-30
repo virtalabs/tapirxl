@@ -11,6 +11,9 @@ from tapirxl.parser.tables import (
     PHILIPS_INTELLIVUE_SERIES,
 )
 
+# DHCP messages a client sends (RFC 2131 §3); only these carry its own name.
+DHCP_CLIENT_MESSAGES = frozenset({"discover", "request", "inform"})
+
 
 def ensure_pipeline(envelope: dict, name: str) -> dict:
     if envelope.get(name) is None:
@@ -230,10 +233,22 @@ def merge_record_into_envelope(env: dict, rec: dict) -> None:
         p3 = ensure_pipeline(env, "pipeline_3")
         p3.setdefault("dhcp", []).append(rf)
         msg_t = (rf.get("dhcp_message_type") or "").lower()
-        if msg_t in ("discover", "request", ""):
+        # Only the client's own messages name it; an unparsed type is not
+        # assumed to be one. The latest name wins, so a renamed device (or an
+        # earlier misattribution) does not stick for the life of the process.
+        if msg_t in DHCP_CLIENT_MESSAGES:
             h = (rf.get("option12_hostname_hint") or "").strip()
-            if h and not env.get("dhcp_hostname"):
+            if h:
                 env["dhcp_hostname"] = h
+        # The leased address (yiaddr), ACK over Offer: the client's IP even if
+        # it never sends a packet from it.
+        lease = rf.get("lease_yiaddr") or ""
+        if lease and (msg_t == "ack" or not env.get("dhcp_lease_ack")):
+            env["dhcp_lease_ack" if msg_t == "ack" else "dhcp_lease_offer"] = lease
+            # Only an ACKed lease is the client's address; an Offer may be
+            # declined, so it stays a last-resort fallback (finalize).
+            if msg_t == "ack" and lease not in ips:
+                ips.append(lease)
 
     elif proto == "SNMP":
         p3 = ensure_pipeline(env, "pipeline_3")
@@ -338,10 +353,11 @@ def finalize_envelope_from_records(env: dict) -> dict:
             break
 
     ips_clean = [i for i in env["ip_observations"] if i and i != "0.0.0.0"]
+    lease = env.get("dhcp_lease_ack") or env.get("dhcp_lease_offer")
     env["ip"] = (
         ips_clean[0]
         if ips_clean
-        else (env["ip_observations"][0] if env["ip_observations"] else "0.0.0.0")
+        else lease or (env["ip_observations"][0] if env["ip_observations"] else "0.0.0.0")
     )
 
     env.pop("_pkt_ts", None)

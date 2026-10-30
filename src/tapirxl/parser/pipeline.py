@@ -55,6 +55,7 @@ def packet_to_records(packet: object, oui_table: dict) -> list[dict]:
 
         if hasattr(packet, "dhcp") or hasattr(packet, "bootp"):
             _push(emits, dhcp.handle(packet, oui_table))
+            _push(emits, dhcp.sender(packet, oui_table))  # relay / server, if not the client
 
         if udp_dport == "1900" or udp_sport == "1900":
             _push(emits, ssdp.handle(packet, oui_table))
