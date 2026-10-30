@@ -16,7 +16,10 @@ on:
 
 jobs:
   unit:
-    runs-on: ubuntu-latest
+    # ubuntu-latest moved to 26.04 (tshark 4.6.4), where tshark under pytest
+    # fails with "You don't have permission to read the file" on the fixtures.
+    # Pinned to 24.04 until that is understood; the demo image is Debian 12.
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
