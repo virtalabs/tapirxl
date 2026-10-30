@@ -32,3 +32,4 @@ agents/
 # context
 .claude/
 .cursor/
+.harness/
