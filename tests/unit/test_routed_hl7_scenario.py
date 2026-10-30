@@ -110,6 +110,7 @@ def _router_then_routed_copy() -> list[dict]:
         {**_rec("HL7_MLLP", ROUTER_MAC, "10.0.0.5"), "timestamp": 3.0},  # routed, owner unknown
         {**_rec("SSH", ROUTER_MAC, "10.0.0.1"), "timestamp": 4.0},  # the router's own
         {**_arp(LAB_MAC, "10.0.0.5"), "timestamp": 5.0},  # the sender, too late
+        {**_rec("HL7_MLLP", "00:00:00:00:00:00", "10.0.0.5"), "timestamp": 6.0},  # zero MAC
     ]
 
 

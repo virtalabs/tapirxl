@@ -12,6 +12,7 @@ from tapirxl.core.oui import load_oui_table
 from tapirxl.parser._helpers import _safe
 from tapirxl.parser.deterministic import postprocess_pipeline_labels
 from tapirxl.parser.envelope_builder import (
+    NON_HOST_MACS,
     IpOwners,
     finalize_envelope_from_records,
     make_empty_envelope,
@@ -146,6 +147,8 @@ def build_signal_register(records: list[dict], oui_table: dict) -> list[dict]:
     owners = IpOwners()
     by_mac: dict[str, list[dict]] = defaultdict(list)
     for rec in sorted(records, key=lambda x: float(x.get("timestamp", 0))):
+        if not rec.get("src_mac") or normalize_mac(rec["src_mac"]) in NON_HOST_MACS:
+            continue
         owners.learn(rec)
         if not owners.credit(rec, oui_table):
             continue

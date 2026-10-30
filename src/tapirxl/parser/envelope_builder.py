@@ -17,6 +17,10 @@ from tapirxl.parser.tables import (
 DHCP_CLIENT_MESSAGES = frozenset({"discover", "request", "inform"})
 
 
+# Frames from these MACs are dropped by batch and live alike, before owner crediting.
+NON_HOST_MACS = frozenset({"00:00:00:00:00:00"})
+
+
 class IpOwners:
     """Which MAC owns which IP, learned from ARP (spa -> sha) and DHCP ACK leases.
 
