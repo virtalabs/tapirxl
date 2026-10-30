@@ -308,5 +308,17 @@ def test_ws_discovery_uuid_is_the_endpoint_not_the_message_id() -> None:
         "</wsa:EndpointReference></wsd:Hello></s:Body>"
     )
     probe = "<wsa:MessageID>urn:uuid:50480000-0000-4000-8000-000000000002</wsa:MessageID>"
+    # A UUID-valued Address outside EndpointReference (ReplyTo) comes first.
+    reply_to_first = hello.replace(
+        "<s:Header>",
+        "<s:Header><wsa:ReplyTo><wsa:Address>urn:uuid:47450000-0000-4000-8000-000000000003"
+        "</wsa:Address></wsa:ReplyTo>",
+    )
+    no_endpoint_address = (
+        "<wsd:Hello><wsa:EndpointReference><wsa:ReferenceParameters/></wsa:EndpointReference>"
+        "<wsa:Address>urn:uuid:50484248-0000-4000-8000-000000000004</wsa:Address></wsd:Hello>"
+    )
     assert endpoint_uuid(hello) == "50484248-4332-3638-3631-0009fb500101"
+    assert endpoint_uuid(reply_to_first) == "50484248-4332-3638-3631-0009fb500101"
+    assert endpoint_uuid(no_endpoint_address) is None
     assert endpoint_uuid(probe) is None

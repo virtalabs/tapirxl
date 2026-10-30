@@ -5,10 +5,17 @@ import re
 from tapirxl.parser._helpers import _base_record, _safe
 from tapirxl.parser.tables import UUID_PATTERN
 
+_ENDPOINT_REF = re.compile(
+    r"<(?:[\w.-]+:)?EndpointReference\b[^>]*>(.*?)</(?:[\w.-]+:)?EndpointReference>", re.S
+)
+_ADDRESS = re.compile(r"<(?:[\w.-]+:)?Address\b[^>]*>\s*urn:uuid:([^<\s]+)\s*</")
+
 
 def endpoint_uuid(cdata: str) -> str | None:
-    """The device's UUID: EndpointReference/Address, never the header MessageID."""
-    m = re.search(r"<[^>]*Address[^>]*>\s*urn:uuid:([^<\s]+)", cdata, re.IGNORECASE)
+    """The device's UUID: the Address inside EndpointReference, never the header
+    MessageID or another Address (e.g. ReplyTo)."""
+    ref = _ENDPOINT_REF.search(cdata)
+    m = ref and _ADDRESS.search(ref.group(1))
     u = m and UUID_PATTERN.fullmatch(m.group(1))
     return u.group(0) if u else None
 
