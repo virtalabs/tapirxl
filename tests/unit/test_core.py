@@ -321,4 +321,9 @@ def test_ws_discovery_uuid_is_the_endpoint_not_the_message_id() -> None:
     assert endpoint_uuid(hello) == "50484248-4332-3638-3631-0009fb500101"
     assert endpoint_uuid(reply_to_first) == "50484248-4332-3638-3631-0009fb500101"
     assert endpoint_uuid(no_endpoint_address) is None
+    # Valid XML variants: whitespace before ">" in a closing tag, upper-case URN scheme.
+    spaced = hello.replace("</wsa:EndpointReference>", "</wsa:EndpointReference >")
+    upper = hello.replace("<wsa:Address>urn:uuid:", "<wsa:Address>URN:UUID:")
+    assert endpoint_uuid(spaced) == "50484248-4332-3638-3631-0009fb500101"
+    assert endpoint_uuid(upper) == "50484248-4332-3638-3631-0009fb500101"
     assert endpoint_uuid(probe) is None

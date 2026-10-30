@@ -6,9 +6,9 @@ from tapirxl.parser._helpers import _base_record, _safe
 from tapirxl.parser.tables import UUID_PATTERN
 
 _ENDPOINT_REF = re.compile(
-    r"<(?:[\w.-]+:)?EndpointReference\b[^>]*>(.*?)</(?:[\w.-]+:)?EndpointReference>", re.S
+    r"<(?:[\w.-]+:)?EndpointReference\b[^>]*>(.*?)</(?:[\w.-]+:)?EndpointReference\s*>", re.S
 )
-_ADDRESS = re.compile(r"<(?:[\w.-]+:)?Address\b[^>]*>\s*urn:uuid:([^<\s]+)\s*</")
+_ADDRESS = re.compile(r"<(?:[\w.-]+:)?Address\b[^>]*>\s*(?i:urn:uuid:)([^<\s]+)\s*</")
 
 
 def endpoint_uuid(cdata: str) -> str | None:
