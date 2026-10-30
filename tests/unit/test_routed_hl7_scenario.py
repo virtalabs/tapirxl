@@ -13,8 +13,9 @@ import pytest
 from typer.testing import CliRunner
 
 from tapirxl.cli import app
-from tapirxl.parser.envelope_builder import credit_ip_owner, learn_ip_owner
+from tapirxl.parser.envelope_builder import IpOwners
 from tapirxl.parser.live_emitter import LiveEmitter
+from tapirxl.parser.pipeline import build_signal_register
 from tapirxl.schemas.envelope import HostEnvelope
 
 PCAP = Path(__file__).resolve().parents[1] / "fixtures/routed_hl7_scenario.pcap"
@@ -58,47 +59,81 @@ def _rec(protocol: str, src_mac: str, src_ip: str, **raw: str) -> dict:
     return {"protocol": protocol, "src_mac": src_mac, "src_ip": src_ip, "raw_fields": raw}
 
 
+def _owners(*recs: dict) -> IpOwners:
+    owners = IpOwners()
+    for r in recs:
+        owners.learn(r)
+    return owners
+
+
+def _arp(mac: str, ip: str) -> dict:
+    return _rec("ARP", mac, ip, spa=ip, sha=mac)
+
+
 def test_owner_learned_from_arp_and_dhcp_ack_only() -> None:
-    owners: dict[str, str] = {}
-    learn_ip_owner(_rec("ARP", ROUTER_MAC, "10.0.0.5", spa="10.0.0.5", sha=LAB_MAC), owners)
-    learn_ip_owner(_rec("ARP", LAB_MAC, "0.0.0.0", spa="0.0.0.0", sha=LAB_MAC), owners)  # probe
-    learn_ip_owner(
+    owners = _owners(
+        _rec("ARP", ROUTER_MAC, "10.0.0.5", spa="10.0.0.5", sha=LAB_MAC),
+        _rec("ARP", LAB_MAC, "0.0.0.0", spa="0.0.0.0", sha=LAB_MAC),  # probe
         _rec("DHCP", ENGINE_MAC, "0.0.0.0", dhcp_message_type="ack", lease_yiaddr="10.0.0.6"),
-        owners,
-    )
-    learn_ip_owner(
         _rec("DHCP", ROUTER_MAC, "0.0.0.0", dhcp_message_type="offer", lease_yiaddr="10.0.0.7"),
-        owners,
+        _rec("HL7_MLLP", ROUTER_MAC, "10.0.0.8"),
     )
-    learn_ip_owner(_rec("HL7_MLLP", ROUTER_MAC, "10.0.0.8"), owners)
-    assert owners == {"10.0.0.5": LAB_MAC.upper(), "10.0.0.6": ENGINE_MAC.upper()}
+    assert owners.by_ip == {"10.0.0.5": LAB_MAC.upper(), "10.0.0.6": ENGINE_MAC.upper()}
+
+
+def test_a_moved_ip_leaves_its_old_owner() -> None:
+    owners = _owners(_arp(LAB_MAC, "10.0.0.5"), _arp(ENGINE_MAC, "10.0.0.5"))
+    assert owners.by_mac[LAB_MAC.upper()] == set()
+    assert owners.by_mac[ENGINE_MAC.upper()] == {"10.0.0.5"}
 
 
 def test_unbound_ip_and_dhcp_keep_their_mac() -> None:
-    owners = {"10.0.0.5": LAB_MAC.upper()}  # the router has claimed nothing
+    owners = _owners(_arp(LAB_MAC, "10.0.0.5"))  # the router has claimed nothing
     for rec in (_rec("HL7_MLLP", ROUTER_MAC, "10.0.0.9"), _rec("DHCP", ROUTER_MAC, "10.0.0.5")):
-        credit_ip_owner(rec, owners, {})
+        assert owners.credit(rec, {})
         assert rec["src_mac"] == ROUTER_MAC
 
 
 def test_live_mode_credits_the_owner() -> None:
     emitter = LiveEmitter({}, clock=lambda: 0.0)
-    emitter.ingest_record(_rec("ARP", LAB_MAC, "10.0.0.5", spa="10.0.0.5", sha=LAB_MAC))
+    emitter.ingest_record(_arp(LAB_MAC, "10.0.0.5"))
     emitter.ingest_record(_rec("HL7_MLLP", ROUTER_MAC, "10.0.0.5"))
     assert set(emitter.hosts) == {LAB_MAC.upper()}
+    assert emitter.hosts[LAB_MAC.upper()].envelope.get("pipeline_3")  # the HL7 landed here
+
+
+def _router_then_routed_copy() -> list[dict]:
+    """The router claims two gateways; a routed copy arrives before its sender's ARP."""
+    return [
+        {**_arp(ROUTER_MAC, "10.0.0.1"), "timestamp": 1.0},
+        {**_arp(ROUTER_MAC, "10.0.1.1"), "timestamp": 2.0},
+        {**_rec("HL7_MLLP", ROUTER_MAC, "10.0.0.5"), "timestamp": 3.0},  # routed, owner unknown
+        {**_rec("SSH", ROUTER_MAC, "10.0.0.1"), "timestamp": 4.0},  # the router's own
+        {**_arp(LAB_MAC, "10.0.0.5"), "timestamp": 5.0},  # the sender, too late
+    ]
 
 
 def test_live_drops_a_routed_copy_seen_before_its_owner() -> None:
-    """The router has claimed its own IPs, the sender has not ARPed yet."""
     emitter = LiveEmitter({}, clock=lambda: 0.0)
-    emitter.ingest_record(_rec("ARP", ROUTER_MAC, "10.0.0.1", spa="10.0.0.1", sha=ROUTER_MAC))
-    emitter.ingest_record(_rec("HL7_MLLP", ROUTER_MAC, "10.0.0.5"))  # routed, owner unknown
-    emitter.ingest_record(_rec("SSH", ROUTER_MAC, "10.0.0.1"))  # the router's own
+    for r in _router_then_routed_copy():
+        emitter.ingest_record(r)
     router = emitter.hosts[ROUTER_MAC.upper()].envelope
     assert not router.get("pipeline_3")
     assert router.get("pipeline_2") is not None
 
 
+def test_batch_agrees_with_live_on_the_same_records() -> None:
+    envs = {e["mac"]: e for e in build_signal_register(_router_then_routed_copy(), {})}
+    assert not envs[ROUTER_MAC.upper()].get("pipeline_3")  # dropped, as in live mode
+    assert not envs[LAB_MAC.upper()].get("pipeline_3")  # not re-credited from the future
+
+
+def test_a_host_using_an_unannounced_address_keeps_its_traffic() -> None:
+    """One claimed IP is an ordinary host, not a router: nothing is dropped."""
+    owners = _owners(_arp(LAB_MAC, "10.0.0.5"))
+    assert owners.credit(_rec("HL7_MLLP", LAB_MAC, "10.0.0.50"), {})
+
+
 def test_unclaimed_mac_keeps_its_records() -> None:
     """A MAC that never ARPed is not known to be routing: nothing is dropped."""
-    assert credit_ip_owner(_rec("HL7_MLLP", LAB_MAC, "10.0.0.9"), {}, {})
+    assert IpOwners().credit(_rec("HL7_MLLP", LAB_MAC, "10.0.0.9"), {})

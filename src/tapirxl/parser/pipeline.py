@@ -12,9 +12,8 @@ from tapirxl.core.oui import load_oui_table
 from tapirxl.parser._helpers import _safe
 from tapirxl.parser.deterministic import postprocess_pipeline_labels
 from tapirxl.parser.envelope_builder import (
-    credit_ip_owner,
+    IpOwners,
     finalize_envelope_from_records,
-    learn_ip_owner,
     make_empty_envelope,
     merge_record_into_envelope,
 )
@@ -144,12 +143,11 @@ def extract_packets(pcap_path: str, oui_table: dict) -> list[dict]:
 
 
 def build_signal_register(records: list[dict], oui_table: dict) -> list[dict]:
-    owners: dict[str, str] = {}
-    for rec in records:
-        learn_ip_owner(rec, owners)
+    owners = IpOwners()
     by_mac: dict[str, list[dict]] = defaultdict(list)
-    for rec in records:
-        if not credit_ip_owner(rec, owners, oui_table):
+    for rec in sorted(records, key=lambda x: float(x.get("timestamp", 0))):
+        owners.learn(rec)
+        if not owners.credit(rec, oui_table):
             continue
         mac = normalize_mac(rec.get("src_mac") or "")
         if not mac:
