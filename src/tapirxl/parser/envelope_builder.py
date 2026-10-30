@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections import defaultdict
+
 from tapirxl.core.mac import normalize_mac
 from tapirxl.core.oui import oui_lookup
 from tapirxl.parser.tables import (
@@ -13,6 +15,63 @@ from tapirxl.parser.tables import (
 
 # DHCP messages a client sends (RFC 2131 §3); only these carry its own name.
 DHCP_CLIENT_MESSAGES = frozenset({"discover", "request", "inform"})
+
+
+# Frames from these MACs are dropped by batch and live alike, before owner crediting.
+NON_HOST_MACS = frozenset({"00:00:00:00:00:00"})
+
+
+class IpOwners:
+    """Which MAC owns which IP, learned from ARP (spa -> sha) and DHCP ACK leases.
+
+    Used to file a routed copy under its sender: on a router-on-a-stick both
+    legs of a routed packet cross the SPAN, and the second carries the
+    router's eth.src with the sender's IP. Batch and live both learn and
+    credit record by record in capture order, so they agree.
+    """
+
+    def __init__(self) -> None:
+        self.by_ip: dict[str, str] = {}
+        self.by_mac: dict[str, set[str]] = defaultdict(set)
+
+    def learn(self, rec: dict) -> None:
+        rf = rec.get("raw_fields") or {}
+        if rec.get("protocol") == "ARP":
+            ip, mac = rf.get("spa"), rf.get("sha")
+        elif rec.get("protocol") == "DHCP" and rf.get("dhcp_message_type") == "ack":
+            ip, mac = rf.get("lease_yiaddr"), rec.get("src_mac")
+        else:
+            return
+        if not ip or str(ip) == "0.0.0.0" or not mac:
+            return
+        ip, mac = str(ip), normalize_mac(str(mac))
+        old = self.by_ip.get(ip)
+        if old and old != mac:
+            self.by_mac[old].discard(ip)
+        self.by_ip[ip] = mac
+        self.by_mac[mac].add(ip)
+
+    def credit(self, rec: dict, oui_table: dict) -> bool:
+        """Re-file a routed copy under its sender; False means drop it.
+
+        A copy is dropped only when its sender is not known yet and the
+        frame's MAC has claimed two or more other IPs, i.e. it is routing
+        (live mode sees such copies before the sender's first ARP; the
+        sender's own leg is filed under the sender). A host using an address
+        it never ARPed for keeps its traffic. ARP and DHCP are attributed by
+        their own headers.
+        """
+        ip = str(rec.get("src_ip") or "")
+        if rec.get("protocol") in ("ARP", "DHCP") or ip in ("", "0.0.0.0"):
+            return True
+        mac = normalize_mac(rec.get("src_mac") or "")
+        owner = self.by_ip.get(ip)
+        if owner is None:
+            return len(self.by_mac.get(mac, ())) < 2
+        if owner != mac:
+            rec["src_mac"] = owner
+            rec["src_oui"] = oui_lookup(owner, oui_table)
+        return True
 
 
 def ensure_pipeline(envelope: dict, name: str) -> dict:

@@ -13,19 +13,19 @@ from tapirxl.core.mac import normalize_mac
 from tapirxl.parser.deterministic import postprocess_pipeline_labels
 from tapirxl.parser.emit import render_envelope
 from tapirxl.parser.envelope_builder import (
+    NON_HOST_MACS,
+    IpOwners,
     finalize_envelope_from_records,
     make_empty_envelope,
     merge_record_into_envelope,
 )
 from tapirxl.parser.triage import contradiction_scan, route_host
 
+
 # MACs that are never a real asset and must be dropped before envelope creation.
 # The all-zero MAC appears on Linux loopback (lo has no hardware address) and
 # is the only artifact distinguishing live capture from PCAP file capture for
 # the synthetic fixture; ignoring it keeps the live and pcap paths in lock-step.
-_NON_HOST_MACS = frozenset({"00:00:00:00:00:00"})
-
-
 class HostPhase(Enum):
     INITIAL_BUFFER = "initial_buffer"
     STABLE = "stable"
@@ -63,6 +63,7 @@ class LiveEmitter:
         self._clock = clock or time.monotonic
 
         self.hosts: dict[str, HostState] = {}
+        self._ip_owners = IpOwners()
         self._deadlines: list[tuple[float, int, str, str]] = []
         self._seq = 0
 
@@ -86,8 +87,15 @@ class LiveEmitter:
         self._schedule(mac, self.now() + self.heartbeat_secs, "heartbeat")
 
     def ingest_record(self, record: dict[str, Any]) -> None:
+        # Zero-MAC frames are dropped before owner crediting, so a known
+        # src_ip cannot re-file them under a host.
+        if not record.get("src_mac") or normalize_mac(record["src_mac"]) in NON_HOST_MACS:
+            return
+        self._ip_owners.learn(record)
+        if not self._ip_owners.credit(record, self.oui_table):
+            return
         mac = normalize_mac(record.get("src_mac") or "")
-        if not mac or mac in _NON_HOST_MACS:
+        if not mac:
             return
 
         now = self.now()
