@@ -67,8 +67,10 @@ def packet_to_records(packet: object, oui_table: dict) -> list[dict]:
 
         elif udp_dport == "5353":
             mdns_before = len(emits)
-            _push(emits, mdns.handle_txt(packet, oui_table))
+            # A first: the A record's owner is the device hostname, so it
+            # wins over the TXT record's service-instance resp_name.
             _push(emits, mdns.handle_a(packet, oui_table))
+            _push(emits, mdns.handle_txt(packet, oui_table))
             _push(emits, dns_sd.handle(packet, oui_table))
             if len(emits) == mdns_before:
                 _push(emits, dns.handle(packet, oui_table))

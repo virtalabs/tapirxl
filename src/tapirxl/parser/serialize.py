@@ -70,9 +70,17 @@ def _to_ethernet(env: dict) -> EthernetBlock | None:
 
 
 def _to_pipeline_1(env: dict) -> Pipeline1Block | None:
-    if not env.get("pipeline_1"):
+    # mDNS merges only create an empty pipeline_1 dict (no sub-keys), so the
+    # mdns_* envelope fields decide whether an mDNS block must be emitted.
+    has_mdns = bool(
+        env.get("mdns_hostname")
+        or env.get("mdns_txt_raw")
+        or env.get("mdns_txt_parsed")
+        or env.get("dns_sd_services")
+    )
+    if not env.get("pipeline_1") and not has_mdns:
         return None
-    p1 = env["pipeline_1"]
+    p1 = env.get("pipeline_1") or {}
     block = Pipeline1Block()
 
     if env.get("ws_uuid"):
@@ -86,12 +94,6 @@ def _to_pipeline_1(env: dict) -> Pipeline1Block | None:
             deterministic_confidence=p1.get("deterministic_confidence"),
         )
 
-    has_mdns = bool(
-        env.get("mdns_hostname")
-        or env.get("mdns_txt_raw")
-        or env.get("mdns_txt_parsed")
-        or env.get("dns_sd_services")
-    )
     if has_mdns:
         contradiction_codes = (env.get("triage") or {}).get("contradiction_codes") or []
         spoof = MdnsSpoofCheck(spoof_suspected="C2" in contradiction_codes)

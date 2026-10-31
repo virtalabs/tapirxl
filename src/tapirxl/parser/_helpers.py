@@ -16,6 +16,53 @@ def _safe(obj, attr, default=None):
         return default
 
 
+def _dns_layer(packet):
+    """Return the DNS record layer of a packet, preferring the mDNS layer.
+
+    tshark dissects UDP/5353 under a dedicated "mdns" layer whose fields keep
+    their dns.* names (pyshark: packet.mdns.dns_txt, dns_a, dns_resp_name,
+    dns_ptr_domain_name); plain DNS traffic exposes the same fields under a
+    "dns" layer.
+    """
+    for name in ("mdns", "dns"):
+        layer = getattr(packet, name, None)
+        if layer is not None:
+            return layer
+    return None
+
+
+def _layer_fields(layer, sanitized_name: str) -> list:
+    """All occurrences of a field in a pyshark layer, in packet order.
+
+    pyshark attribute access (and str() on the container) exposes only the
+    first value of a repeated field; the LayerFieldsContainer keeps every
+    occurrence.
+    """
+    if layer is None:
+        return []
+    try:
+        container = layer.get_field(sanitized_name)
+    except Exception:
+        return []
+    if container is None:
+        return []
+    fields = getattr(container, "all_fields", None) or [container]
+    return list(fields)
+
+
+def _layer_field_values(layer, sanitized_name: str) -> list[str]:
+    """Best display value of every occurrence of a (possibly repeated) field."""
+    values: list[str] = []
+    for field in _layer_fields(layer, sanitized_name):
+        try:
+            val = field.get_default_value()
+        except Exception:
+            val = None
+        if val:
+            values.append(str(val))
+    return values
+
+
 def _packet_src_identity(packet, oui_table: dict) -> tuple[str, str | None, str]:
     """Return (mac_normalized, ipv4_src_or_None, oui_vendor)."""
     eth_mac = normalize_mac(_safe(packet.eth, "src", "") if hasattr(packet, "eth") else "")
